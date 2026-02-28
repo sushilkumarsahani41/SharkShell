@@ -179,36 +179,42 @@ export default function HostsPage() {
                 </div>
             ) : (
                 <div className="card-grid">
-                    {filteredHosts.map((host, i) => (
-                        <div
-                            key={host.id}
-                            className={`host-card glass-card ${host.group_color ? 'host-card-grouped' : ''}`}
-                            style={{
-                                animationDelay: `${i * 0.05}s`,
-                                ...(host.group_color ? { '--glow-color': host.group_color } : {}),
-                            }}
-                        >
-                            <div className="host-card-header">
-                                <div className="host-card-icon">
-                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2" /><rect x="2" y="14" width="20" height="8" rx="2" ry="2" /><line x1="6" y1="6" x2="6.01" y2="6" /><line x1="6" y1="18" x2="6.01" y2="18" /></svg>
+                    {filteredHosts.map((host, i) => {
+                        const gc = host.group_color;
+                        const r = gc ? parseInt(gc.slice(1, 3), 16) : 0;
+                        const g = gc ? parseInt(gc.slice(3, 5), 16) : 0;
+                        const b = gc ? parseInt(gc.slice(5, 7), 16) : 0;
+                        return (
+                            <div
+                                key={host.id}
+                                className={`host-card glass-card ${gc ? 'host-card-grouped' : ''}`}
+                                style={{
+                                    animationDelay: `${i * 0.05}s`,
+                                    ...(gc ? { '--glow-color': gc, '--glow-r': r, '--glow-g': g, '--glow-b': b } : {}),
+                                }}
+                            >
+                                <div className="host-card-header">
+                                    <div className="host-card-icon">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2" /><rect x="2" y="14" width="20" height="8" rx="2" ry="2" /><line x1="6" y1="6" x2="6.01" y2="6" /><line x1="6" y1="18" x2="6.01" y2="18" /></svg>
+                                    </div>
+                                    <div>
+                                        <h3 className="host-card-name">{host.name}</h3>
+                                        <span className="host-card-addr">{host.username}@{host.hostname}:{host.port}</span>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h3 className="host-card-name">{host.name}</h3>
-                                    <span className="host-card-addr">{host.username}@{host.hostname}:{host.port}</span>
+                                <div className="host-card-meta">
+                                    <span className={`badge ${host.auth_type === 'key' ? 'badge-info' : 'badge-warning'}`}>{host.auth_type === 'key' ? '🔑 Key Auth' : '🔒 Password'}</span>
+                                    {host.key_name && <span className="host-key-name">{host.key_name}</span>}
+                                    {host.has_password && <span className="badge badge-success" style={{ fontSize: 10 }}>Saved</span>}
+                                </div>
+                                <div className="host-card-actions">
+                                    <button className="btn btn-primary btn-sm" onClick={() => createSession(null, host)}>Connect</button>
+                                    <button className="btn btn-ghost btn-sm" onClick={() => openEdit(host)}>Edit</button>
+                                    <button className="btn btn-danger btn-sm" onClick={() => setDeleteConfirmId(host.id)}>Delete</button>
                                 </div>
                             </div>
-                            <div className="host-card-meta">
-                                <span className={`badge ${host.auth_type === 'key' ? 'badge-info' : 'badge-warning'}`}>{host.auth_type === 'key' ? '🔑 Key Auth' : '🔒 Password'}</span>
-                                {host.key_name && <span className="host-key-name">{host.key_name}</span>}
-                                {host.has_password && <span className="badge badge-success" style={{ fontSize: 10 }}>Saved</span>}
-                            </div>
-                            <div className="host-card-actions">
-                                <button className="btn btn-primary btn-sm" onClick={() => createSession(null, host)}>Connect</button>
-                                <button className="btn btn-ghost btn-sm" onClick={() => openEdit(host)}>Edit</button>
-                                <button className="btn btn-danger btn-sm" onClick={() => setDeleteConfirmId(host.id)}>Delete</button>
-                            </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
 

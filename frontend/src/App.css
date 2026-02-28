@@ -2242,37 +2242,19 @@ a.stat-card {
 
 /* Glowing group border on host cards */
 .host-card-grouped {
-    border: 1px solid var(--glow-color, transparent) !important;
+    border: 1.5px solid var(--glow-color, transparent) !important;
     box-shadow:
-        0 0 8px color-mix(in srgb, var(--glow-color) 25%, transparent),
-        0 0 20px color-mix(in srgb, var(--glow-color) 10%, transparent),
-        inset 0 0 12px color-mix(in srgb, var(--glow-color) 5%, transparent);
-    animation: glowPulse 3s ease-in-out infinite;
+        0 0 10px rgba(var(--glow-r, 99), var(--glow-g, 102), var(--glow-b, 241), 0.25),
+        0 0 24px rgba(var(--glow-r, 99), var(--glow-g, 102), var(--glow-b, 241), 0.1),
+        inset 0 0 14px rgba(var(--glow-r, 99), var(--glow-g, 102), var(--glow-b, 241), 0.06);
+    transition: box-shadow 0.3s ease, border-color 0.3s ease;
 }
 
 .host-card-grouped:hover {
     box-shadow:
-        0 0 12px color-mix(in srgb, var(--glow-color) 40%, transparent),
-        0 0 30px color-mix(in srgb, var(--glow-color) 18%, transparent),
-        inset 0 0 16px color-mix(in srgb, var(--glow-color) 8%, transparent);
-}
-
-@keyframes glowPulse {
-
-    0%,
-    100% {
-        box-shadow:
-            0 0 8px color-mix(in srgb, var(--glow-color) 25%, transparent),
-            0 0 20px color-mix(in srgb, var(--glow-color) 10%, transparent),
-            inset 0 0 12px color-mix(in srgb, var(--glow-color) 5%, transparent);
-    }
-
-    50% {
-        box-shadow:
-            0 0 14px color-mix(in srgb, var(--glow-color) 35%, transparent),
-            0 0 28px color-mix(in srgb, var(--glow-color) 15%, transparent),
-            inset 0 0 16px color-mix(in srgb, var(--glow-color) 8%, transparent);
-    }
+        0 0 16px rgba(var(--glow-r, 99), var(--glow-g, 102), var(--glow-b, 241), 0.4),
+        0 0 36px rgba(var(--glow-r, 99), var(--glow-g, 102), var(--glow-b, 241), 0.18),
+        inset 0 0 20px rgba(var(--glow-r, 99), var(--glow-g, 102), var(--glow-b, 241), 0.1);
 }
 
 /* Group color picker */
