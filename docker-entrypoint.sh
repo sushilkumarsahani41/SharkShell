@@ -35,7 +35,7 @@ if [ "$DB_VARS_COUNT" -eq 0 ]; then
     export DB_USER="sharkshell"
     export DB_NAME="sharkshell"
     export DB_PASSWORD=$(openssl rand -hex 24)
-    echo "ℹ️  Auto-generated strong $DB_PASSWORD."
+    echo "ℹ️  Auto-generated strong DB Password $DB_PASSWORD."
 
     PGDATA=/app/pgdata
     mkdir -p "$PGDATA"
