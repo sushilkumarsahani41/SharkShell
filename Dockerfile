@@ -1,6 +1,6 @@
 # ─────────────────────────────────────────
 # SharkShell — All-in-One Docker Image
-# Backend (Nest.js) + Frontend (React/Nginx)
+# PostgreSQL + Backend (Nest.js) + Frontend (nginx)
 # ─────────────────────────────────────────
 
 # ── Stage 1: Build Backend ───
@@ -19,10 +19,10 @@ RUN npm ci
 COPY frontend/ .
 RUN npm run build
 
-# ── Stage 3: Production ───
+# ── Stage 3: Production (All-in-One) ───
 FROM node:20-alpine
 
-RUN apk add --no-cache nginx openssl supervisor
+RUN apk add --no-cache nginx openssl supervisor postgresql postgresql-contrib
 
 WORKDIR /app
 
@@ -36,15 +36,14 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 # Frontend: copy built static files to nginx
 COPY --from=frontend-builder /app/frontend/dist /usr/share/nginx/html
 COPY frontend/nginx.conf /etc/nginx/http.d/default.conf
-RUN rm -f /etc/nginx/http.d/default.conf.bak
 
-# Supervisor config to run both nginx + node
-RUN mkdir -p /var/log/supervisor
+# Supervisor config
 COPY supervisord.conf /etc/supervisord.conf
 
-# Setup non-root dirs
-RUN mkdir -p /app/secrets /run/nginx && \
-    chown -R node:node /app/secrets /var/log/supervisor
+# PostgreSQL data directory + init script
+RUN mkdir -p /var/lib/postgresql/data /run/postgresql /var/log/supervisor /run/nginx /app/secrets && \
+    chown -R postgres:postgres /var/lib/postgresql /run/postgresql && \
+    chown -R node:node /app/secrets
 
 EXPOSE 80
 
