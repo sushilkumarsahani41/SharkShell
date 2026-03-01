@@ -1,0 +1,56 @@
+# ─────────────────────────────────────────────
+# SharkShell — Production Docker Compose
+# Pull pre-built image from Docker Hub
+#
+# Quick Start:
+#   1. Download: curl -sO https://raw.githubusercontent.com/sushilkumarsahani41/SharkShell/main/docker-compose.prod.yml
+#   2. Download: curl -sO https://raw.githubusercontent.com/sushilkumarsahani41/SharkShell/main/init.sh && chmod +x init.sh
+#   3. Setup:   ./init.sh
+#   4. Run:     docker compose -f docker-compose.prod.yml up -d
+#   5. Open:    http://localhost:8080
+# ─────────────────────────────────────────────
+
+services:
+  # ─── PostgreSQL ───
+  # Comment out this block if using an external database
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-sharkshell}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Run ./init.sh first to generate .env}
+      POSTGRES_DB: ${DB_NAME:-sharkshell}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER:-sharkshell}" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ─── SharkShell (All-in-One) ───
+  sharkshell:
+    image: greatsharktech/sharkshell:latest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PORT: ${PORT:-3002}
+      DB_HOST: ${DB_HOST:-postgres}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_USER: ${DB_USER:-sharkshell}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME:-sharkshell}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+      JWT_SECRET: ${JWT_SECRET:-}
+    volumes:
+      - secrets:/app/secrets
+    ports:
+      - "${COMPOSE_PORT:-8080}:80"
+
+volumes:
+  pgdata:
+    driver: local
+  secrets:
+    driver: local

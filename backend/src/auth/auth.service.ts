@@ -1,9 +1,33 @@
 import { Injectable } from '@nestjs/common';
 import * as jwt from 'jsonwebtoken';
 import * as bcrypt from 'bcryptjs';
+import * as fs from 'fs';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-change-me';
 const TOKEN_EXPIRY = '7d';
+
+// JWT signing: prefer RSA key file, fallback to string secret
+function getJwtSigningKey(): { key: string | Buffer; algorithm: jwt.Algorithm } {
+    const keyFile = process.env.JWT_KEY_FILE;
+    if (keyFile && fs.existsSync(keyFile)) {
+        return { key: fs.readFileSync(keyFile), algorithm: 'RS256' };
+    }
+    // Fallback to symmetric secret (dev mode or simple deployments)
+    const secret = process.env.JWT_SECRET || 'fallback-secret-change-me';
+    return { key: secret, algorithm: 'HS256' };
+}
+
+function getJwtVerifyKey(): { key: string | Buffer; algorithms: jwt.Algorithm[] } {
+    const pubFile = process.env.JWT_PUB_FILE;
+    const keyFile = process.env.JWT_KEY_FILE;
+    if (pubFile && fs.existsSync(pubFile)) {
+        return { key: fs.readFileSync(pubFile), algorithms: ['RS256'] };
+    }
+    if (keyFile && fs.existsSync(keyFile)) {
+        return { key: fs.readFileSync(keyFile), algorithms: ['RS256'] };
+    }
+    const secret = process.env.JWT_SECRET || 'fallback-secret-change-me';
+    return { key: secret, algorithms: ['HS256'] };
+}
 
 @Injectable()
 export class AuthService {
@@ -16,12 +40,14 @@ export class AuthService {
     }
 
     generateToken(payload: any): string {
-        return jwt.sign(payload, JWT_SECRET, { expiresIn: TOKEN_EXPIRY });
+        const { key, algorithm } = getJwtSigningKey();
+        return jwt.sign(payload, key, { expiresIn: TOKEN_EXPIRY, algorithm });
     }
 
     verifyToken(token: string): any {
         try {
-            return jwt.verify(token, JWT_SECRET);
+            const { key, algorithms } = getJwtVerifyKey();
+            return jwt.verify(token, key, { algorithms });
         } catch {
             return null;
         }
