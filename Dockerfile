@@ -47,9 +47,9 @@ RUN addgroup -g 1001 sharkshell && \
 COPY docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
+ENV PORT=80
 USER root
 EXPOSE 80
-EXPOSE 5432
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["node", "dist/main.js"]
