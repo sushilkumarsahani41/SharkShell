@@ -1,24 +1,25 @@
 # ─────────────────────────────────────────────
-# SharkShell — Production Docker Compose
-# Pull pre-built image from Docker Hub
+# SharkShell — Production Docker Stack
 #
 # Quick Start:
-#   1. Download: curl -sO https://raw.githubusercontent.com/sushilkumarsahani41/SharkShell/main/docker-compose.prod.yml
-#   2. Download: curl -sO https://raw.githubusercontent.com/sushilkumarsahani41/SharkShell/main/init.sh && chmod +x init.sh
-#   3. Setup:   ./init.sh
-#   4. Run:     docker compose -f docker-compose.prod.yml up -d
-#   5. Open:    http://localhost:8080
+#   ./init.sh && docker compose -f docker-compose.prod.yml up -d
+#
+# With your own database:
+#   Set DB_HOST, DB_USER, DB_PASSWORD, DB_NAME in .env
+#   The 'postgres' service will be skipped automatically if using external DB
 # ─────────────────────────────────────────────
 
 services:
   # ─── PostgreSQL ───
-  # Comment out this block if using an external database
+  # Skipped automatically if using an external database (managed by init.sh profiles)
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
+    profiles:
+      - db
     environment:
       POSTGRES_USER: ${DB_USER:-sharkshell}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?Run ./init.sh first to generate .env}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Run ./init.sh first}
       POSTGRES_DB: ${DB_NAME:-sharkshell}
     volumes:
       - pgdata:/var/lib/postgresql/data
@@ -28,13 +29,10 @@ services:
       timeout: 3s
       retries: 10
 
-  # ─── SharkShell (All-in-One) ───
-  sharkshell:
-    image: greatsharktech/sharkshell:latest
+  # ─── Backend (API + SSH Proxy) ───
+  backend:
+    image: greatsharktech/sharkshell-backend:latest
     restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
     environment:
       PORT: ${PORT:-3002}
       DB_HOST: ${DB_HOST:-postgres}
@@ -46,6 +44,13 @@ services:
       JWT_SECRET: ${JWT_SECRET:-}
     volumes:
       - secrets:/app/secrets
+
+  # ─── SharkShell (Frontend + Reverse Proxy) ───
+  sharkshell:
+    image: greatsharktech/sharkshell:latest
+    restart: unless-stopped
+    depends_on:
+      - backend
     ports:
       - "${COMPOSE_PORT:-8080}:80"
 

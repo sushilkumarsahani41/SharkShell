@@ -1,4 +1,4 @@
-name: Build & Push Docker Image
+name: Build & Push Docker Images
 
 on:
   push:
@@ -6,23 +6,22 @@ on:
   workflow_dispatch:
 
 env:
-  DOCKERHUB_IMAGE: greatsharktech/sharkshell
-  GHCR_IMAGE: ghcr.io/sushilkumarsahani41/sharkshell
+  FRONTEND_IMAGE: greatsharktech/sharkshell
+  BACKEND_IMAGE: greatsharktech/sharkshell-backend
+  GHCR_FRONTEND: ghcr.io/sushilkumarsahani41/sharkshell
+  GHCR_BACKEND: ghcr.io/sushilkumarsahani41/sharkshell-backend
 
 jobs:
-  build-and-push:
-    name: Build & Push
+  build-backend:
+    name: Build Backend
     runs-on: ubuntu-latest
     permissions:
       contents: write
       packages: write
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
 
       - name: Login to Docker Hub
         uses: docker/login-action@v3
@@ -30,20 +29,20 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Login to GitHub Container Registry
+      - name: Login to GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata
+      - name: Metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: |
-            ${{ env.DOCKERHUB_IMAGE }}
-            ${{ env.GHCR_IMAGE }}
+            ${{ env.BACKEND_IMAGE }}
+            ${{ env.GHCR_BACKEND }}
           tags: |
             type=raw,value=latest
             type=semver,pattern=v{{version}}
@@ -52,28 +51,81 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
-          context: .
+          context: ./backend
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
 
+  build-frontend:
+    name: Build Frontend (SharkShell)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.FRONTEND_IMAGE }}
+            ${{ env.GHCR_FRONTEND }}
+          tags: |
+            type=raw,value=latest
+            type=semver,pattern=v{{version}}
+            type=semver,pattern=v{{major}}.{{minor}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+
+  release:
+    name: Create Release
+    needs: [build-backend, build-frontend]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
           body: |
-            ## 🐳 Docker
+            ## 🐳 Docker Deploy
 
             ```bash
-            docker pull greatsharktech/sharkshell:${{ github.ref_name }}
-            ```
-
-            Or use `latest`:
-            ```bash
-            docker run -d -p 8080:80 greatsharktech/sharkshell:latest
+            curl -sO https://raw.githubusercontent.com/sushilkumarsahani41/SharkShell/main/docker-compose.prod.yml
+            curl -sO https://raw.githubusercontent.com/sushilkumarsahani41/SharkShell/main/init.sh
+            chmod +x init.sh && ./init.sh
+            docker compose -f docker-compose.prod.yml up -d
             ```
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -21,7 +21,6 @@ COPY --from=builder /app/dist ./dist
 COPY docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
-# Non-root user
 RUN addgroup -g 1001 sharkshell && \
     adduser -u 1001 -G sharkshell -s /bin/sh -D sharkshell && \
     mkdir -p /app/secrets && chown -R sharkshell:sharkshell /app
@@ -29,6 +28,10 @@ RUN addgroup -g 1001 sharkshell && \
 USER sharkshell
 
 EXPOSE 3002
+
+# Healthcheck hits an actual endpoint to ensure NestJS is up
+HEALTHCHECK --interval=10s --timeout=5s --start-period=15s --retries=3 \
+    CMD wget --spider -q http://localhost:3002/api/health || exit 1
 
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["node", "dist/main"]

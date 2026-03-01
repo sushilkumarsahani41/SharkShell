@@ -1,9 +1,11 @@
 services:
   # ─── PostgreSQL ───
-  # Comment out this entire block if using an external database
+  # Skipped automatically if using an external database
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
+    profiles:
+      - db
     environment:
       POSTGRES_USER: ${DB_USER:-sharkshell}
       POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required. Run ./init.sh first}
@@ -20,9 +22,6 @@ services:
   backend:
     build: ./backend
     restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
     environment:
       PORT: ${PORT:-3002}
       DB_HOST: ${DB_HOST:-postgres}
@@ -46,8 +45,7 @@ services:
     build: ./frontend
     restart: unless-stopped
     depends_on:
-      backend:
-        condition: service_healthy
+      - backend
     ports:
       - "${COMPOSE_PORT:-8080}:80"
 
