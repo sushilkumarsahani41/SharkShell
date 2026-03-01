@@ -8,15 +8,8 @@ import { KeysModule } from './keys/keys.module';
 import { SshModule } from './ssh/ssh.module';
 import { GroupsModule } from './groups/groups.module';
 
-import { ServeStaticModule } from '@nestjs/serve-static';
-import { join } from 'path';
-
 @Module({
     imports: [
-        ServeStaticModule.forRoot({
-            rootPath: join(__dirname, '..', 'public'),
-            exclude: ['/api/(.*)'],
-        }),
         DatabaseModule,
         CryptoModule,
         AuthModule,

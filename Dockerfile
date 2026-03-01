@@ -52,7 +52,11 @@ COPY docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 USER root
+
+# Expose Port 80 for Nginx (which serves UI and proxies API)
 EXPOSE 80
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+
+# Boot the backend on the internal port 3002
 CMD ["node", "dist/main.js"]

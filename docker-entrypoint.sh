@@ -34,14 +34,9 @@ if [ "$DB_VARS_COUNT" -eq 0 ]; then
     export DB_PORT="5432"
     export DB_USER="sharkshell"
     export DB_NAME="sharkshell"
-    export DB_PASSWORD=$(openssl rand -hex 16)
+    export DB_PASSWORD=$(openssl rand -hex 24)
+    echo "ℹ️  Auto-generated strong $DB_PASSWORD."
 
-    echo "DB_NAME: $DB_NAME"
-    echo "DB_HOST: $DB_HOST"
-    echo "DB_PORT: $DB_PORT"
-    echo "DB_USER: $DB_USER"
-    echo "DB_PASSWORD: $DB_PASSWORD"
-    
     PGDATA=/app/pgdata
     mkdir -p "$PGDATA"
     chown -R postgres:postgres "$PGDATA"
@@ -50,7 +45,7 @@ if [ "$DB_VARS_COUNT" -eq 0 ]; then
 
     if [ -z "$(ls -A "$PGDATA" 2>/dev/null)" ]; then
         echo "Initializing local database..."
-        su-exec postgres initdb -D "$PGDATA"
+        su-exec postgres initdb -D "$PGDATA" -E UTF8 --locale=C
         
         echo "Starting PostgreSQL..."
         su-exec postgres pg_ctl start -D "$PGDATA" -w -o "-c listen_addresses='localhost'"
@@ -64,9 +59,8 @@ if [ "$DB_VARS_COUNT" -eq 0 ]; then
     fi
 fi
 
-echo "🚀 Starting SharkShell..."
-
-# Start Nginx (serves frontend on port 80, proxies /api to backend on port 3002)
+echo "🚀 Starting Nginx..."
 nginx
 
+echo "🚀 Starting SharkShell Backend..."
 exec "$@"
