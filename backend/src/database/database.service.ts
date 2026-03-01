@@ -3,39 +3,50 @@ import { Pool } from 'pg';
 
 @Injectable()
 export class DatabaseService implements OnModuleDestroy {
-    private pool: Pool;
+  private pool: Pool;
 
-    constructor() {
-        this.pool = new Pool({
-            host: process.env.DB_HOST || 'localhost',
-            port: parseInt(process.env.DB_PORT || '5432', 10),
-            user: process.env.DB_USER || 'postgres',
-            password: process.env.DB_PASSWORD || '',
-            database: process.env.DB_NAME || 'ssh_client',
-        });
+  constructor() {
+    this.pool = new Pool({
+      host: process.env.DB_HOST || 'localhost',
+      port: parseInt(process.env.DB_PORT || '5432', 10),
+      user: process.env.DB_USER || 'postgres',
+      password: process.env.DB_PASSWORD || '',
+      database: process.env.DB_NAME || 'ssh_client',
+    });
+  }
+
+  async query(text: string, params?: any[]) {
+    const client = await this.pool.connect();
+    try {
+      return await client.query(text, params);
+    } finally {
+      client.release();
+    }
+  }
+
+  async initDB() {
+    let retries = 5;
+    while (retries > 0) {
+      try {
+        await this.query(`
+          CREATE TABLE IF NOT EXISTS users (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            email VARCHAR(255) UNIQUE NOT NULL,
+            password_hash VARCHAR(255) NOT NULL,
+            name VARCHAR(255) NOT NULL,
+            created_at TIMESTAMP DEFAULT NOW()
+          )
+        `);
+        break; // Connection successful
+      } catch (err) {
+        console.log(`Database connection failed. Retries left: ${retries - 1}`);
+        retries -= 1;
+        if (retries === 0) throw err;
+        await new Promise(resolve => setTimeout(resolve, 3000));
+      }
     }
 
-    async query(text: string, params?: any[]) {
-        const client = await this.pool.connect();
-        try {
-            return await client.query(text, params);
-        } finally {
-            client.release();
-        }
-    }
-
-    async initDB() {
-        await this.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        email VARCHAR(255) UNIQUE NOT NULL,
-        password_hash VARCHAR(255) NOT NULL,
-        name VARCHAR(255) NOT NULL,
-        created_at TIMESTAMP DEFAULT NOW()
-      )
-    `);
-
-        await this.query(`
+    await this.query(`
       CREATE TABLE IF NOT EXISTS groups (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -46,7 +57,7 @@ export class DatabaseService implements OnModuleDestroy {
       )
     `);
 
-        await this.query(`
+    await this.query(`
       CREATE TABLE IF NOT EXISTS ssh_keys (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -65,7 +76,7 @@ export class DatabaseService implements OnModuleDestroy {
       )
     `);
 
-        await this.query(`
+    await this.query(`
       CREATE TABLE IF NOT EXISTS hosts (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -83,37 +94,37 @@ export class DatabaseService implements OnModuleDestroy {
       )
     `);
 
-        // Fix foreign key constraint
-        try {
-            await this.query(`ALTER TABLE hosts DROP CONSTRAINT IF EXISTS hosts_ssh_key_id_fkey`);
-            await this.query(`ALTER TABLE hosts ADD CONSTRAINT hosts_ssh_key_id_fkey FOREIGN KEY (ssh_key_id) REFERENCES ssh_keys(id) ON DELETE SET NULL`);
-        } catch (err) {
-            // Ignore
-        }
-
-        // Add columns if they don't exist
-        const alterQueries = [
-            "ALTER TABLE hosts ADD COLUMN IF NOT EXISTS password_encrypted TEXT",
-            "ALTER TABLE hosts ADD COLUMN IF NOT EXISTS password_iv VARCHAR(64)",
-            "ALTER TABLE hosts ADD COLUMN IF NOT EXISTS password_auth_tag VARCHAR(64)",
-            "ALTER TABLE ssh_keys ADD COLUMN IF NOT EXISTS passphrase_encrypted TEXT",
-            "ALTER TABLE ssh_keys ADD COLUMN IF NOT EXISTS passphrase_iv VARCHAR(64)",
-            "ALTER TABLE ssh_keys ADD COLUMN IF NOT EXISTS passphrase_auth_tag VARCHAR(64)",
-            "ALTER TABLE hosts ADD COLUMN IF NOT EXISTS group_id UUID REFERENCES groups(id) ON DELETE SET NULL",
-            "ALTER TABLE ssh_keys ADD COLUMN IF NOT EXISTS group_id UUID REFERENCES groups(id) ON DELETE SET NULL",
-        ];
-        for (const q of alterQueries) {
-            try { await this.query(q); } catch { }
-        }
-
-        console.log('  ✅ Database tables initialized');
+    // Fix foreign key constraint
+    try {
+      await this.query(`ALTER TABLE hosts DROP CONSTRAINT IF EXISTS hosts_ssh_key_id_fkey`);
+      await this.query(`ALTER TABLE hosts ADD CONSTRAINT hosts_ssh_key_id_fkey FOREIGN KEY (ssh_key_id) REFERENCES ssh_keys(id) ON DELETE SET NULL`);
+    } catch (err) {
+      // Ignore
     }
 
-    getPool(): Pool {
-        return this.pool;
+    // Add columns if they don't exist
+    const alterQueries = [
+      "ALTER TABLE hosts ADD COLUMN IF NOT EXISTS password_encrypted TEXT",
+      "ALTER TABLE hosts ADD COLUMN IF NOT EXISTS password_iv VARCHAR(64)",
+      "ALTER TABLE hosts ADD COLUMN IF NOT EXISTS password_auth_tag VARCHAR(64)",
+      "ALTER TABLE ssh_keys ADD COLUMN IF NOT EXISTS passphrase_encrypted TEXT",
+      "ALTER TABLE ssh_keys ADD COLUMN IF NOT EXISTS passphrase_iv VARCHAR(64)",
+      "ALTER TABLE ssh_keys ADD COLUMN IF NOT EXISTS passphrase_auth_tag VARCHAR(64)",
+      "ALTER TABLE hosts ADD COLUMN IF NOT EXISTS group_id UUID REFERENCES groups(id) ON DELETE SET NULL",
+      "ALTER TABLE ssh_keys ADD COLUMN IF NOT EXISTS group_id UUID REFERENCES groups(id) ON DELETE SET NULL",
+    ];
+    for (const q of alterQueries) {
+      try { await this.query(q); } catch { }
     }
 
-    async onModuleDestroy() {
-        await this.pool.end();
-    }
+    console.log('  ✅ Database tables initialized');
+  }
+
+  getPool(): Pool {
+    return this.pool;
+  }
+
+  async onModuleDestroy() {
+    await this.pool.end();
+  }
 }

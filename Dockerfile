@@ -24,7 +24,9 @@ RUN npm run build
 FROM node:20-alpine AS production
 WORKDIR /app
 
-# Install production dependencies for the backend
+# Install production dependencies for the backend, AND PostgreSQL for internal auto-generation fallback
+RUN apk add --no-cache openssl postgresql postgresql-contrib su-exec bash
+
 COPY backend/package*.json ./
 RUN npm ci --omit=dev --ignore-scripts
 
@@ -34,13 +36,20 @@ COPY --from=backend-builder /app/backend/dist ./dist
 # Copy the built frontend into a "public" directory for NestJS ServeStatic to serve
 COPY --from=frontend-builder /app/frontend/dist ./public
 
-# Setup user and permissions
+# Setup user and permissions for PostgreSQL
 RUN addgroup -g 1001 sharkshell && \
     adduser -u 1001 -G sharkshell -s /bin/sh -D sharkshell && \
-    mkdir -p /app/secrets && chown -R sharkshell:sharkshell /app
+    mkdir -p /app/secrets && \
+    mkdir -p /app/pgdata && \
+    chown -R sharkshell:sharkshell /app
 
-USER sharkshell
+# Copy the custom entrypoint script
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
+USER root
 EXPOSE 3002
+EXPOSE 5432
 
-CMD ["node", "dist/main"]
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+CMD ["node", "dist/main.js"]
