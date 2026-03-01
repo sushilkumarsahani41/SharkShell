@@ -2,7 +2,6 @@ name: Build & Push Docker Image
 
 on:
   push:
-    branches: [main]
     tags: ['v*']
   workflow_dispatch:
 
@@ -46,7 +45,7 @@ jobs:
             ${{ env.DOCKERHUB_IMAGE }}
             ${{ env.GHCR_IMAGE }}
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest
             type=semver,pattern=v{{version}}
             type=semver,pattern=v{{major}}.{{minor}}
 
