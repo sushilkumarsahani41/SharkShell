@@ -39,14 +39,8 @@ SharkShell is a modern, self-hosted web-based SSH terminal and keystore manager.
 **Recommended** — deploy with a single command:
 
 ```bash
-# Download
-curl -sO https://raw.githubusercontent.com/sushilkumarsahani41/SharkShell/main/docker-compose.prod.yml
-curl -sO https://raw.githubusercontent.com/sushilkumarsahani41/SharkShell/main/init.sh
-chmod +x init.sh
-
 # Setup & Run
-./init.sh
-docker compose -f docker-compose.prod.yml up -d
+docker run -d -p 8080:80 --name sharkshell greatsharktech/sharkshell:latest
 ```
 
 Open **http://localhost:8080** 🚀
