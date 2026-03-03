@@ -43,28 +43,8 @@ exports.AuthService = void 0;
 const common_1 = require("@nestjs/common");
 const jwt = __importStar(require("jsonwebtoken"));
 const bcrypt = __importStar(require("bcryptjs"));
-const fs = __importStar(require("fs"));
+const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-change-me';
 const TOKEN_EXPIRY = '7d';
-function getJwtSigningKey() {
-    const keyFile = process.env.JWT_KEY_FILE;
-    if (keyFile && fs.existsSync(keyFile)) {
-        return { key: fs.readFileSync(keyFile), algorithm: 'RS256' };
-    }
-    const secret = process.env.JWT_SECRET || 'fallback-secret-change-me';
-    return { key: secret, algorithm: 'HS256' };
-}
-function getJwtVerifyKey() {
-    const pubFile = process.env.JWT_PUB_FILE;
-    const keyFile = process.env.JWT_KEY_FILE;
-    if (pubFile && fs.existsSync(pubFile)) {
-        return { key: fs.readFileSync(pubFile), algorithms: ['RS256'] };
-    }
-    if (keyFile && fs.existsSync(keyFile)) {
-        return { key: fs.readFileSync(keyFile), algorithms: ['RS256'] };
-    }
-    const secret = process.env.JWT_SECRET || 'fallback-secret-change-me';
-    return { key: secret, algorithms: ['HS256'] };
-}
 let AuthService = class AuthService {
     async hashPassword(password) {
         return bcrypt.hash(password, 12);
@@ -73,13 +53,11 @@ let AuthService = class AuthService {
         return bcrypt.compare(password, hash);
     }
     generateToken(payload) {
-        const { key, algorithm } = getJwtSigningKey();
-        return jwt.sign(payload, key, { expiresIn: TOKEN_EXPIRY, algorithm });
+        return jwt.sign(payload, JWT_SECRET, { expiresIn: TOKEN_EXPIRY });
     }
     verifyToken(token) {
         try {
-            const { key, algorithms } = getJwtVerifyKey();
-            return jwt.verify(token, key, { algorithms });
+            return jwt.verify(token, JWT_SECRET);
         }
         catch {
             return null;

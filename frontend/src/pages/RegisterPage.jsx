@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function RegisterPage() {
@@ -8,8 +8,12 @@ export default function RegisterPage() {
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const { register } = useAuth();
+    const { register, setupStatus } = useAuth();
     const navigate = useNavigate();
+
+    if (setupStatus && !setupStatus.requireSetup) {
+        return <Navigate to="/login" replace />;
+    }
 
     async function handleSubmit(e) {
         e.preventDefault();
@@ -52,7 +56,7 @@ export default function RegisterPage() {
                         </svg>
                         <h1>SharkShell</h1>
                     </div>
-                    <p className="auth-subtitle">Create your account</p>
+                    <p className="auth-subtitle">Admin Account Setup</p>
 
                     <form onSubmit={handleSubmit} className="auth-form">
                         {error && <div className="auth-error">{error}</div>}
@@ -69,13 +73,9 @@ export default function RegisterPage() {
                             <input type="password" className="input-field" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} />
                         </div>
                         <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%' }} disabled={isLoading}>
-                            {isLoading ? <span className="spinner" /> : 'Create Account'}
+                            {isLoading ? <span className="spinner" /> : 'Complete Setup'}
                         </button>
                     </form>
-
-                    <p className="auth-footer">
-                        Already have an account? <a href="/login" onClick={(e) => { e.preventDefault(); navigate('/login'); }}>Sign in</a>
-                    </p>
                 </div>
             </div>
         </div>

@@ -11,7 +11,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
-var _a, _b, _c;
+var _a, _b, _c, _d;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AuthController = void 0;
 const common_1 = require("@nestjs/common");
@@ -55,8 +55,23 @@ let AuthController = class AuthController {
             return res.status(500).json({ error: 'Internal server error' });
         }
     }
+    async setupStatus(res) {
+        try {
+            const result = await this.db.query('SELECT COUNT(*) FROM users');
+            const count = parseInt(result.rows[0].count, 10);
+            return res.json({ requireSetup: count === 0 });
+        }
+        catch (err) {
+            console.error('Setup status error:', err);
+            return res.status(500).json({ error: 'Internal server error' });
+        }
+    }
     async register(body, res) {
         try {
+            const countResult = await this.db.query('SELECT COUNT(*) FROM users');
+            if (parseInt(countResult.rows[0].count, 10) > 0) {
+                return res.status(403).json({ error: 'Registration is closed. Admin account already exists.' });
+            }
             const { email, password, name } = body;
             if (!email || !password || !name) {
                 return res.status(400).json({ error: 'Name, email, and password are required' });
@@ -108,11 +123,18 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "login", null);
 __decorate([
+    (0, common_1.Get)('setup-status'),
+    __param(0, (0, common_1.Res)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [typeof (_b = typeof express_1.Response !== "undefined" && express_1.Response) === "function" ? _b : Object]),
+    __metadata("design:returntype", Promise)
+], AuthController.prototype, "setupStatus", null);
+__decorate([
     (0, common_1.Post)('register'),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, common_1.Res)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, typeof (_b = typeof express_1.Response !== "undefined" && express_1.Response) === "function" ? _b : Object]),
+    __metadata("design:paramtypes", [Object, typeof (_c = typeof express_1.Response !== "undefined" && express_1.Response) === "function" ? _c : Object]),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "register", null);
 __decorate([
@@ -128,7 +150,7 @@ __decorate([
     (0, common_1.HttpCode)(common_1.HttpStatus.OK),
     __param(0, (0, common_1.Res)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [typeof (_c = typeof express_1.Response !== "undefined" && express_1.Response) === "function" ? _c : Object]),
+    __metadata("design:paramtypes", [typeof (_d = typeof express_1.Response !== "undefined" && express_1.Response) === "function" ? _d : Object]),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "logout", null);
 exports.AuthController = AuthController = __decorate([
