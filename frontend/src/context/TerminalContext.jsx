@@ -60,6 +60,7 @@ export function TerminalProvider({ children }) {
     const [workspaces, setWorkspaces] = useState(() => loadSavedWorkspaces());
     const [activeWorkspaceId, setActiveWorkspaceId] = useState('ws-default');
     const [activeSessionId, setActiveSessionId] = useState(null);
+    const [passphrasePrompt, setPassphrasePrompt] = useState(null); // { sessionId, hostId }
 
     // Refs to hold live socket/term objects (not in React state to avoid re-renders)
     const sessionRefs = useRef({}); // { [sessionId]: { socket, term, fitAddon, resizeObserver } }
@@ -205,6 +206,11 @@ export function TerminalProvider({ children }) {
 
             socket.on('ssh:data', (data) => { term.write(data); });
 
+            socket.on('ssh:passphrase-needed', (data) => {
+                term.writeln(`\r\n\x1b[33m🔑 Passphrase required for this key\x1b[0m\r\n`);
+                setPassphrasePrompt({ sessionId, hostId: data.hostId });
+            });
+
             socket.on('ssh:error', (data) => {
                 term.writeln(`\r\n\x1b[31m❌ Error: ${data.message}\x1b[0m\r\n`);
                 updateSessionStatus(sessionId, 'disconnected');
@@ -266,6 +272,26 @@ export function TerminalProvider({ children }) {
         }, 50);
     }
 
+    function submitPassphrase(passphrase) {
+        if (!passphrasePrompt) return;
+        const { sessionId, hostId } = passphrasePrompt;
+        const refs = sessionRefs.current[sessionId];
+        if (refs?.socket?.connected) {
+            refs.term?.writeln(`\x1b[33m⏳ Retrying with passphrase...\x1b[0m`);
+            refs.socket.emit('ssh:connect', { hostId, passphrase, cols: refs.term?.cols || 80, rows: refs.term?.rows || 24 });
+        }
+        setPassphrasePrompt(null);
+    }
+
+    function cancelPassphrase() {
+        if (passphrasePrompt) {
+            const refs = sessionRefs.current[passphrasePrompt.sessionId];
+            refs?.term?.writeln(`\r\n\x1b[31m❌ Passphrase not provided — connection cancelled\x1b[0m\r\n`);
+            updateSessionStatus(passphrasePrompt.sessionId, 'disconnected');
+        }
+        setPassphrasePrompt(null);
+    }
+
     function connectGroup(workspaceId, hostsInGroup) {
         const wId = workspaceId || activeWorkspaceId;
         hostsInGroup.forEach((host, i) => {
@@ -297,6 +323,9 @@ export function TerminalProvider({ children }) {
             getSessionRefs,
             reconnectSession,
             reconnectWorkspace,
+            passphrasePrompt,
+            submitPassphrase,
+            cancelPassphrase,
         }}>
             {children}
         </TerminalContext.Provider>

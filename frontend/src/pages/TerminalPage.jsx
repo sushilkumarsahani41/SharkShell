@@ -10,7 +10,9 @@ export default function TerminalPage() {
         activeWorkspace, setActiveSessionId,
         createSession, closeSession, connectGroup, getSessionRefs,
         reconnectSession,
+        passphrasePrompt, submitPassphrase, cancelPassphrase,
     } = useTerminal();
+    const [passphraseInput, setPassphraseInput] = useState('');
 
     const [hosts, setHosts] = useState([]);
     const [groups, setGroups] = useState([]);
@@ -161,6 +163,27 @@ export default function TerminalPage() {
                     />
                 ))}
             </div>
+
+            {/* Passphrase Prompt Modal */}
+            {passphrasePrompt && (
+                <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && cancelPassphrase()}>
+                    <div className="modal" style={{ maxWidth: 400 }}>
+                        <h2>Passphrase Required</h2>
+                        <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginBottom: 16 }}>
+                            The SSH key for this host is encrypted. Enter the passphrase to connect.
+                        </p>
+                        <form onSubmit={(e) => { e.preventDefault(); submitPassphrase(passphraseInput); setPassphraseInput(''); }}>
+                            <div className="input-group" style={{ marginBottom: 16 }}>
+                                <input type="password" className="input-field" placeholder="Enter key passphrase" value={passphraseInput} onChange={e => setPassphraseInput(e.target.value)} autoFocus />
+                            </div>
+                            <div className="modal-actions">
+                                <button type="button" className="btn btn-ghost" onClick={() => { cancelPassphrase(); setPassphraseInput(''); }}>Cancel</button>
+                                <button type="submit" className="btn btn-primary" disabled={!passphraseInput}>Connect</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
