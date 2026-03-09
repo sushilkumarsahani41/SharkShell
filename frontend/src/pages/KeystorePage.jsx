@@ -97,7 +97,7 @@ export default function KeystorePage() {
         try {
             const res = await fetch(apiUrl('/api/keys'), {
                 method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                body: JSON.stringify({ name: uploadName, publicKey: uploadPublic, privateKey: uploadPrivate, passphrase: uploadPassphrase || undefined, groupId: uploadGroupId || null }),
+                body: JSON.stringify({ name: uploadName, publicKey: uploadPublic, privateKey: uploadPrivate, passphrase: uploadPassphrase || undefined, savePassphrase: !!uploadPassphrase, groupId: uploadGroupId || null }),
             });
             if (res.ok) { showToast('Key uploaded successfully!'); setShowUpload(false); setUploadName(''); setUploadPublic(''); setUploadPrivate(''); setUploadPassphrase(''); setUploadGroupId(''); fetchKeys(); }
             else { const data = await res.json(); showToast(data.error || 'Failed', 'error'); }

@@ -168,8 +168,14 @@ export class SshGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
             sshClient.connect(connConfig);
         } catch (err) {
-            console.error('SSH proxy error:', err);
-            socket.emit('ssh:error', { message: (err as Error).message });
+            const errorMsg = (err as Error).message;
+            if (errorMsg.includes('Encrypted') && errorMsg.includes('no passphrase')) {
+                console.error('SSH proxy: Passphrase required for encrypted key');
+                socket.emit('ssh:passphrase-needed', { hostId: data.hostId });
+            } else {
+                console.error('SSH proxy error:', err);
+                socket.emit('ssh:error', { message: errorMsg });
+            }
         }
     }
 

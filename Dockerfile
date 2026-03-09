@@ -23,8 +23,8 @@ RUN npm run build
 FROM node:20-alpine AS production
 WORKDIR /app
 
-# Install Nginx, PostgreSQL (for embedded DB fallback), and utilities
-RUN apk add --no-cache openssl nginx postgresql postgresql-contrib su-exec bash
+# Install Nginx, PostgreSQL (for embedded DB fallback), openssh-client (for ssh-keygen), and utilities
+RUN apk add --no-cache openssl nginx postgresql postgresql-contrib su-exec bash openssh-client
 
 COPY backend/package*.json ./
 RUN npm ci --omit=dev --ignore-scripts
