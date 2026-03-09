@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SharkShell — Secure, Self-Hosted Web SSH Client</title>
+    <meta name="description" content="SharkShell is a modern, self-hosted web-based SSH terminal and keystore manager. Connect to remote servers from your browser with enterprise-grade security.">
+    <meta name="keywords" content="SSH, web SSH client, self-hosted, terminal, keystore, SSH key management, Docker">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Animated Background Orbs -->
+    <div class="bg-orbs">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+        <div class="orb orb-4"></div>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="navbar" id="navbar">
+        <div class="nav-container">
+            <a href="#" class="nav-logo">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="url(#navGrad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <defs>
+                        <linearGradient id="navGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#6366f1"/>
+                            <stop offset="100%" stop-color="#06b6d4"/>
+                        </linearGradient>
+                    </defs>
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+                <span>SharkShell</span>
+            </a>
+            <div class="nav-links" id="navLinks">
+                <a href="#features">Features</a>
+                <a href="#screenshots">Screenshots</a>
+                <a href="#architecture">Architecture</a>
+                <a href="#security">Security</a>
+                <a href="#quickstart">Get Started</a>
+            </div>
+            <a href="https://github.com/sushilkumarsahani41/SharkShell" target="_blank" class="nav-cta">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                <span>GitHub</span>
+            </a>
+            <button class="nav-toggle" id="navToggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero" id="hero">
+        <div class="hero-container">
+            <div class="hero-badge animate-in">
+                <span class="badge-dot"></span>
+                Open Source & Self-Hosted
+            </div>
+            <h1 class="hero-title animate-in">
+                Your Servers,<br>
+                <span class="gradient-text">One Terminal.</span>
+            </h1>
+            <p class="hero-subtitle animate-in">
+                SharkShell is a modern, self-hosted web SSH client with encrypted keystore, multi-tab terminals, and workspace management. Deploy with one command.
+            </p>
+            <div class="hero-actions animate-in">
+                <a href="#quickstart" class="btn btn-primary btn-lg">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                    Get Started
+                </a>
+                <a href="#screenshots" class="btn btn-ghost btn-lg">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                    See it in Action
+                </a>
+            </div>
+            <div class="hero-code animate-in">
+                <div class="code-header">
+                    <div class="code-dots"><span></span><span></span><span></span></div>
+                    <span class="code-label">Quick Deploy</span>
+                    <button class="code-copy" onclick="copyCode(this, 'heroCmd')" title="Copy">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                    </button>
+                </div>
+                <pre><code id="heroCmd">docker run -d -p 8080:80 greatsharktech/sharkshell:latest</code></pre>
+            </div>
+            <div class="hero-screenshot animate-in">
+                <div class="screenshot-glow"></div>
+                <img src="screenshots/dashboard.png" alt="SharkShell Dashboard" loading="lazy">
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="features" id="features">
+        <div class="section-container">
+            <div class="section-header animate-in">
+                <span class="section-tag">Features</span>
+                <h2>Everything you need to manage<br><span class="gradient-text">remote servers</span></h2>
+                <p>Enterprise-grade tools, designed for simplicity.</p>
+            </div>
+            <div class="features-grid">
+                <div class="feature-card animate-in">
+                    <div class="feature-icon">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+                    </div>
+                    <h3>Multi-Tab Terminals</h3>
+                    <p>Open multiple SSH sessions in tabbed terminals. Switch between servers instantly without losing your work.</p>
+                </div>
+                <div class="feature-card animate-in">
+                    <div class="feature-icon feature-icon-cyan">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                    </div>
+                    <h3>Workspaces</h3>
+                    <p>Organize your sessions into named workspaces. Sessions persist through page refreshes — click to reconnect.</p>
+                </div>
+                <div class="feature-card animate-in">
+                    <div class="feature-icon feature-icon-green">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    </div>
+                    <h3>Encrypted Keystore</h3>
+                    <p>AES-256-GCM encryption for all stored credentials. Private keys and passwords are encrypted at rest.</p>
+                </div>
+                <div class="feature-card animate-in">
+                    <div class="feature-icon feature-icon-amber">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+                    </div>
+                    <h3>SSH Key Management</h3>
+                    <p>Generate, upload, download, and organize SSH keys. Support for ED25519, ECDSA, and RSA key types.</p>
+                </div>
+                <div class="feature-card animate-in">
+                    <div class="feature-icon feature-icon-pink">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+                    </div>
+                    <h3>Host & Key Groups</h3>
+                    <p>Color-coded groups with glowing visual indicators. Organize servers by environment and connect entire groups at once.</p>
+                </div>
+                <div class="feature-card animate-in">
+                    <div class="feature-icon feature-icon-purple">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                    </div>
+                    <h3>Session Persistence</h3>
+                    <p>Sessions survive page refresh. Your terminals stay alive — just click to reconnect and pick up where you left off.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Screenshots Section -->
+    <section class="screenshots" id="screenshots">
+        <div class="section-container">
+            <div class="section-header animate-in">
+                <span class="section-tag">Screenshots</span>
+                <h2>See SharkShell<br><span class="gradient-text">in action</span></h2>
+                <p>A modern, glassmorphic interface designed for productivity.</p>
+            </div>
+            <div class="screenshot-tabs animate-in">
+                <button class="tab-btn active" data-tab="dashboard">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                    Dashboard
+                </button>
+                <button class="tab-btn" data-tab="terminal">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+                    Terminal
+                </button>
+                <button class="tab-btn" data-tab="hosts">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/></svg>
+                    Hosts
+                </button>
+                <button class="tab-btn" data-tab="keystore">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+                    Keystore
+                </button>
+                <button class="tab-btn" data-tab="login">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    Login
+                </button>
+            </div>
+            <div class="screenshot-viewer animate-in">
+                <div class="screenshot-frame">
+                    <div class="frame-header">
+                        <div class="frame-dots"><span></span><span></span><span></span></div>
+                        <span class="frame-url">localhost:8080</span>
+                    </div>
+                    <div class="frame-body">
+                        <img src="screenshots/dashboard.png" alt="SharkShell Dashboard" class="tab-image active" data-tab="dashboard">
+                        <img src="screenshots/terminal.png" alt="SharkShell Terminal" class="tab-image" data-tab="terminal">
+                        <img src="screenshots/hosts.png" alt="SharkShell Hosts" class="tab-image" data-tab="hosts">
+                        <img src="screenshots/keystore.png" alt="SharkShell Keystore" class="tab-image" data-tab="keystore">
+                        <img src="screenshots/login.png" alt="SharkShell Login" class="tab-image" data-tab="login">
+                    </div>
+                </div>
+                <div class="screenshot-caption">
+                    <span class="caption-text" id="captionText">Dashboard — Overview of your SSH keys, saved hosts, and security status at a glance</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Architecture Section -->
+    <section class="architecture" id="architecture">
+        <div class="section-container">
+            <div class="section-header animate-in">
+                <span class="section-tag">Architecture</span>
+                <h2>Built with<br><span class="gradient-text">modern tech</span></h2>
+                <p>A carefully chosen stack for performance and security.</p>
+            </div>
+            <div class="arch-grid animate-in">
+                <div class="arch-card">
+                    <div class="arch-icon arch-react">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><ellipse cx="12" cy="12" rx="10" ry="4.5"/><ellipse cx="12" cy="12" rx="10" ry="4.5" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="10" ry="4.5" transform="rotate(120 12 12)"/></svg>
+                    </div>
+                    <h4>React 18</h4>
+                    <p>Modern UI with Vite build</p>
+                </div>
+                <div class="arch-card">
+                    <div class="arch-icon arch-nest">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                    </div>
+                    <h4>NestJS 10</h4>
+                    <p>Robust API & WebSocket proxy</p>
+                </div>
+                <div class="arch-card">
+                    <div class="arch-icon arch-pg">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+                    </div>
+                    <h4>PostgreSQL 16</h4>
+                    <p>Reliable data persistence</p>
+                </div>
+                <div class="arch-card">
+                    <div class="arch-icon arch-docker">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M17 7V5a2 2 0 00-2-2H9a2 2 0 00-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/></svg>
+                    </div>
+                    <h4>Docker</h4>
+                    <p>One-command deployment</p>
+                </div>
+                <div class="arch-card">
+                    <div class="arch-icon arch-socketio">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                    </div>
+                    <h4>Socket.IO</h4>
+                    <p>Real-time terminal streaming</p>
+                </div>
+                <div class="arch-card">
+                    <div class="arch-icon arch-xterm">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+                    </div>
+                    <h4>xterm.js</h4>
+                    <p>Full-featured terminal emulator</p>
+                </div>
+            </div>
+            <div class="arch-diagram animate-in">
+                <pre class="arch-ascii"><code>┌──────────────────────────────────────────────┐
+│          SharkShell Container                │
+│                                              │
+│   ┌──────────┐         ┌──────────────┐      │
+│   │  nginx   │────────▶│  Nest.js API │      │
+│   │  :80     │ /api/*  │  :3002       │      │
+│   │          │ ws://   │              │      │
+│   │ (React   │         │  SSH Proxy   │      │
+│   │  SPA)    │         │  Auth/Crypto │      │
+│   └──────────┘         └──────┬───────┘      │
+│                               │              │
+└───────────────────────────────┼──────────────┘
+                                │
+                        ┌───────▼───────┐
+                        │  PostgreSQL   │
+                        │  (internal    │
+                        │   or external)│
+                        └───────────────┘</code></pre>
+            </div>
+        </div>
+    </section>
+
+    <!-- Security Section -->
+    <section class="security" id="security">
+        <div class="section-container">
+            <div class="section-header animate-in">
+                <span class="section-tag">Security</span>
+                <h2>Enterprise-grade<br><span class="gradient-text">security built in</span></h2>
+                <p>Your credentials are protected by industry-standard encryption.</p>
+            </div>
+            <div class="security-grid">
+                <div class="security-card animate-in">
+                    <div class="security-icon">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    </div>
+                    <h3>AES-256-GCM</h3>
+                    <p>All passwords and private keys are encrypted at rest using AES-256-GCM — the same standard used by governments and banks.</p>
+                </div>
+                <div class="security-card animate-in">
+                    <div class="security-icon">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+                    </div>
+                    <h3>RSA JWT Auth</h3>
+                    <p>Auto-generated 2048-bit RSA keypair for token signing. Secure session management with RS256 algorithm.</p>
+                </div>
+                <div class="security-card animate-in">
+                    <div class="security-icon">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    </div>
+                    <h3>First-Time Lockdown</h3>
+                    <p>Seamless admin setup on fresh installs. Open registration is automatically blocked after the first admin account is created.</p>
+                </div>
+                <div class="security-card animate-in">
+                    <div class="security-icon">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M17 7V5a2 2 0 00-2-2H9a2 2 0 00-2 2v2"/><circle cx="12" cy="14" r="2"/></svg>
+                    </div>
+                    <h3>Non-Root Container</h3>
+                    <p>Docker image runs as an unprivileged user. Secrets are stored in persistent volumes and survive container restarts.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Quick Start Section -->
+    <section class="quickstart" id="quickstart">
+        <div class="section-container">
+            <div class="section-header animate-in">
+                <span class="section-tag">Get Started</span>
+                <h2>Deploy in<br><span class="gradient-text">60 seconds</span></h2>
+                <p>One command. That's it.</p>
+            </div>
+            <div class="quickstart-content animate-in">
+                <div class="qs-step">
+                    <div class="qs-number">1</div>
+                    <div class="qs-info">
+                        <h3>Recommended: Docker Compose</h3>
+                        <p>Download the compose file, run the init script, and start.</p>
+                        <div class="code-block">
+                            <div class="code-header">
+                                <div class="code-dots"><span></span><span></span><span></span></div>
+                                <span class="code-label">terminal</span>
+                                <button class="code-copy" onclick="copyCode(this, 'cmd1')">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                                </button>
+                            </div>
+                            <pre><code id="cmd1"><span class="code-comment"># Download</span>
+curl -sO https://raw.githubusercontent.com/sushilkumarsahani41/SharkShell/main/docker-compose.prod.yml
+curl -sO https://raw.githubusercontent.com/sushilkumarsahani41/SharkShell/main/init.sh
+chmod +x init.sh
+
+<span class="code-comment"># Setup & Run</span>
+./init.sh
+docker compose -f docker-compose.prod.yml up -d</code></pre>
+                        </div>
+                    </div>
+                </div>
+                <div class="qs-step">
+                    <div class="qs-number">2</div>
+                    <div class="qs-info">
+                        <h3>Or: Docker Run (Bring Your Own Database)</h3>
+                        <p>If you have an external PostgreSQL database, run the standalone container.</p>
+                        <div class="code-block">
+                            <div class="code-header">
+                                <div class="code-dots"><span></span><span></span><span></span></div>
+                                <span class="code-label">terminal</span>
+                                <button class="code-copy" onclick="copyCode(this, 'cmd2')">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                                </button>
+                            </div>
+                            <pre><code id="cmd2">docker run -d -p 8080:80 \
+  -e DB_HOST=your-db-host \
+  -e DB_USER=your-user \
+  -e DB_PASSWORD=your-password \
+  -e DB_NAME=sharkshell \
+  -v sharkshell-secrets:/app/secrets \
+  greatsharktech/sharkshell:latest</code></pre>
+                        </div>
+                    </div>
+                </div>
+                <div class="qs-step">
+                    <div class="qs-number">3</div>
+                    <div class="qs-info">
+                        <h3>Open & Create Admin</h3>
+                        <p>Navigate to <code>http://localhost:8080</code>. On first visit, you'll see the admin setup screen — create your account and you're ready to go. 🚀</p>
+                    </div>
+                </div>
+            </div>
+            <div class="qs-config animate-in">
+                <h3>Configuration</h3>
+                <p>All settings are optional — SharkShell auto-generates secure defaults.</p>
+                <div class="config-table-wrap">
+                    <table class="config-table">
+                        <thead>
+                            <tr><th>Variable</th><th>Default</th><th>Description</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><code>DB_HOST</code></td><td>postgres</td><td>Database hostname</td></tr>
+                            <tr><td><code>DB_PORT</code></td><td>5432</td><td>Database port</td></tr>
+                            <tr><td><code>DB_USER</code></td><td>sharkshell</td><td>Database user</td></tr>
+                            <tr><td><code>DB_PASSWORD</code></td><td><em>auto-generated</em></td><td>Strong random password</td></tr>
+                            <tr><td><code>ENCRYPTION_KEY</code></td><td><em>auto-generated</em></td><td>AES-256 key (64-char hex)</td></tr>
+                            <tr><td><code>JWT_SECRET</code></td><td><em>auto-generated RSA</em></td><td>RSA 2048-bit keypair</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-container">
+            <div class="footer-top">
+                <div class="footer-brand">
+                    <a href="#" class="footer-logo">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="url(#footGrad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <defs>
+                                <linearGradient id="footGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" stop-color="#6366f1"/>
+                                    <stop offset="100%" stop-color="#06b6d4"/>
+                                </linearGradient>
+                            </defs>
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                        </svg>
+                        <span>SharkShell</span>
+                    </a>
+                    <p>Secure, Self-Hosted Web SSH Client<br>By <a href="https://greatshark.in" target="_blank" class="greatshark-link">Greatshark Technologies</a></p>
+                </div>
+                <div class="footer-links">
+                    <div class="footer-col">
+                        <h4>Product</h4>
+                        <a href="#features">Features</a>
+                        <a href="#screenshots">Screenshots</a>
+                        <a href="#quickstart">Get Started</a>
+                    </div>
+                    <div class="footer-col">
+                        <h4>Resources</h4>
+                        <a href="https://github.com/sushilkumarsahani41/SharkShell" target="_blank">GitHub</a>
+                        <a href="https://hub.docker.com/r/greatsharktech/sharkshell" target="_blank">Docker Hub</a>
+                        <a href="https://github.com/sushilkumarsahani41/SharkShell/issues" target="_blank">Issues</a>
+                    </div>
+                    <div class="footer-col">
+                        <h4>Legal</h4>
+                        <a href="https://github.com/sushilkumarsahani41/SharkShell/blob/main/LICENSE" target="_blank">AGPL v3 License</a>
+                        <a href="mailto:sushil@greatshark.in">Contact</a>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>© 2026 Greatshark Technologies. All rights reserved.</p>
+                <div class="footer-badges">
+                    <img src="https://img.shields.io/docker/pulls/greatsharktech/sharkshell?style=flat-square&logo=docker&label=Docker%20Pulls&color=0db7ed" alt="Docker Pulls">
+                    <img src="https://img.shields.io/badge/License-AGPL%20v3-blue.svg?style=flat-square" alt="License">
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
