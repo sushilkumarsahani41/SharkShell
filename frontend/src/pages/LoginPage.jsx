@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function LoginPage() {
@@ -7,8 +7,12 @@ export default function LoginPage() {
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const { login } = useAuth();
+    const { login, setupStatus } = useAuth();
     const navigate = useNavigate();
+
+    if (setupStatus?.requireSetup) {
+        return <Navigate to="/register" replace />;
+    }
 
     async function handleSubmit(e) {
         e.preventDefault();
@@ -63,10 +67,6 @@ export default function LoginPage() {
                             {isLoading ? <span className="spinner" /> : 'Sign In'}
                         </button>
                     </form>
-
-                    <p className="auth-footer">
-                        Don&apos;t have an account? <a href="/register" onClick={(e) => { e.preventDefault(); navigate('/register'); }}>Create one</a>
-                    </p>
                 </div>
             </div>
         </div>

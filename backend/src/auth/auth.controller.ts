@@ -51,9 +51,26 @@ export class AuthController {
         }
     }
 
+    @Get('setup-status')
+    async setupStatus(@Res() res: Response) {
+        try {
+            const result = await this.db.query('SELECT COUNT(*) FROM users');
+            const count = parseInt(result.rows[0].count, 10);
+            return res.json({ requireSetup: count === 0 });
+        } catch (err) {
+            console.error('Setup status error:', err);
+            return res.status(500).json({ error: 'Internal server error' });
+        }
+    }
+
     @Post('register')
     async register(@Body() body: { email: string; password: string; name: string }, @Res() res: Response) {
         try {
+            const countResult = await this.db.query('SELECT COUNT(*) FROM users');
+            if (parseInt(countResult.rows[0].count, 10) > 0) {
+                return res.status(403).json({ error: 'Registration is closed. Admin account already exists.' });
+            }
+
             const { email, password, name } = body;
             if (!email || !password || !name) {
                 return res.status(400).json({ error: 'Name, email, and password are required' });

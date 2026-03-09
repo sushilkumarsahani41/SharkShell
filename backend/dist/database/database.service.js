@@ -32,15 +32,28 @@ let DatabaseService = class DatabaseService {
         }
     }
     async initDB() {
-        await this.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        email VARCHAR(255) UNIQUE NOT NULL,
-        password_hash VARCHAR(255) NOT NULL,
-        name VARCHAR(255) NOT NULL,
-        created_at TIMESTAMP DEFAULT NOW()
-      )
-    `);
+        let retries = 5;
+        while (retries > 0) {
+            try {
+                await this.query(`
+          CREATE TABLE IF NOT EXISTS users (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            email VARCHAR(255) UNIQUE NOT NULL,
+            password_hash VARCHAR(255) NOT NULL,
+            name VARCHAR(255) NOT NULL,
+            created_at TIMESTAMP DEFAULT NOW()
+          )
+        `);
+                break;
+            }
+            catch (err) {
+                console.log(`Database connection failed. Retries left: ${retries - 1}`);
+                retries -= 1;
+                if (retries === 0)
+                    throw err;
+                await new Promise(resolve => setTimeout(resolve, 3000));
+            }
+        }
         await this.query(`
       CREATE TABLE IF NOT EXISTS groups (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

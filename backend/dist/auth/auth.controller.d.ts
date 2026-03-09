@@ -9,6 +9,7 @@ export declare class AuthController {
         email: string;
         password: string;
     }, res: Response): Promise<any>;
+    setupStatus(res: Response): Promise<any>;
     register(body: {
         email: string;
         password: string;

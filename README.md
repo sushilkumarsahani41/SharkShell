@@ -45,6 +45,8 @@ docker run -d -p 8080:80 --name sharkshell greatsharktech/sharkshell:latest
 
 Open **http://localhost:8080** 🚀
 
+> **First-Time Setup:** On your initial visit, SharkShell will detect a fresh database and prompt you with the **Admin Account Setup** screen. Create your administrative account to access the dashboard. Open registration is automatically disabled immediately afterward to secure your instance.
+
 ### Docker Run (Bring Your Own Database)
 
 ```bash
@@ -106,6 +108,7 @@ All settings are optional — SharkShell auto-generates secure defaults if not p
 
 ## 🔒 Security
 
+- **First-Time Lockdown** — Seamless admin account setup on blank databases; open registration is blocked once the admin is established.
 - **RSA JWT Keys** — auto-generated 2048-bit RSA keypair for token signing
 - **AES-256-GCM** — all passwords and private keys encrypted at rest
 - **Strong Defaults** — auto-generated database passwords and encryption keys

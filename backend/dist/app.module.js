@@ -8,6 +8,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AppModule = void 0;
 const common_1 = require("@nestjs/common");
+const app_controller_1 = require("./app.controller");
 const database_module_1 = require("./database/database.module");
 const crypto_module_1 = require("./crypto/crypto.module");
 const auth_module_1 = require("./auth/auth.module");
@@ -29,6 +30,7 @@ exports.AppModule = AppModule = __decorate([
             ssh_module_1.SshModule,
             groups_module_1.GroupsModule,
         ],
+        controllers: [app_controller_1.AppController]
     })
 ], AppModule);
 //# sourceMappingURL=app.module.js.map

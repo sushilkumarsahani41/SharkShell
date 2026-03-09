@@ -7,15 +7,33 @@ export function AuthProvider({ children }) {
     const [user, setUser] = useState(null);
     const [token, setToken] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [setupStatus, setSetupStatus] = useState({ requireSetup: false });
+    const [loadingSetup, setLoadingSetup] = useState(true);
 
     useEffect(() => {
-        const savedToken = localStorage.getItem('token');
-        if (savedToken) {
-            setToken(savedToken);
-            fetchUser(savedToken);
-        } else {
-            setLoading(false);
+        async function fetchInitialState() {
+            try {
+                const setupRes = await fetch(apiUrl('/api/auth/setup-status'));
+                if (setupRes.ok) {
+                    const data = await setupRes.json();
+                    setSetupStatus(data);
+                }
+            } catch (err) {
+                console.error('Failed to fetch setup status', err);
+            } finally {
+                setLoadingSetup(false);
+            }
+
+            const savedToken = localStorage.getItem('token');
+            if (savedToken) {
+                setToken(savedToken);
+                await fetchUser(savedToken);
+            } else {
+                setLoading(false);
+            }
         }
+
+        fetchInitialState();
     }, []);
 
     async function fetchUser(t) {
@@ -74,7 +92,7 @@ export function AuthProvider({ children }) {
     }
 
     return (
-        <AuthContext.Provider value={{ user, token, loading, login, register, logout }}>
+        <AuthContext.Provider value={{ user, token, loading, setupStatus, loadingSetup, login, register, logout }}>
             {children}
         </AuthContext.Provider>
     );

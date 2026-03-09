@@ -10,8 +10,8 @@ import KeystorePage from './pages/KeystorePage';
 import TerminalPage from './pages/TerminalPage';
 
 function PrivateRoute({ children }) {
-    const { user, loading } = useAuth();
-    if (loading) {
+    const { user, loading, loadingSetup } = useAuth();
+    if (loading || loadingSetup) {
         return (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: 'var(--bg-primary)' }}>
                 <div className="spinner spinner-lg"></div>
@@ -22,8 +22,8 @@ function PrivateRoute({ children }) {
 }
 
 function PublicRoute({ children }) {
-    const { user, loading } = useAuth();
-    if (loading) return null;
+    const { user, loading, loadingSetup } = useAuth();
+    if (loading || loadingSetup) return null;
     return user ? <Navigate to="/dashboard" replace /> : children;
 }
 
