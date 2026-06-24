@@ -47,6 +47,9 @@ RUN addgroup -g 1001 sharkshell && \
     mkdir -p /run/nginx && \
     chown -R sharkshell:sharkshell /app
 
+# Declare persistent volumes so data survives container restarts/recreation
+VOLUME ["/app/pgdata", "/app/secrets"]
+
 # Copy the custom entrypoint script
 COPY docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
