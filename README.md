@@ -39,18 +39,26 @@ SharkShell is a modern, self-hosted web-based SSH terminal and keystore manager.
 **Recommended** — deploy with a single command:
 
 ```bash
-# Setup & Run
-docker run -d -p 8080:80 --name sharkshell greatsharktech/sharkshell:latest
+docker run -d \
+  --name sharkshell \
+  -p 8080:80 \
+  -v sharkshell-pgdata:/app/pgdata \
+  -v sharkshell-secrets:/app/secrets \
+  greatsharktech/sharkshell:latest
 ```
 
 Open **http://localhost:8080** 🚀
 
 > **First-Time Setup:** On your initial visit, SharkShell will detect a fresh database and prompt you with the **Admin Account Setup** screen. Create your administrative account to access the dashboard. Open registration is automatically disabled immediately afterward to secure your instance.
 
+> **Data Persistence:** The two `-v` flags mount named Docker volumes for the embedded PostgreSQL database (`sharkshell-pgdata`) and auto-generated secrets (`sharkshell-secrets`). Your data and credentials survive container restarts and redeployments.
+
 ### Docker Run (Bring Your Own Database)
 
 ```bash
-docker run -d -p 8080:80 \
+docker run -d \
+  --name sharkshell \
+  -p 8080:80 \
   -e DB_HOST=your-db-host \
   -e DB_USER=your-user \
   -e DB_PASSWORD=your-password \

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTerminal } from '../context/TerminalContext';
+import TerminalPage from '../pages/TerminalPage';
 
 const navItems = [
     {
@@ -241,7 +242,11 @@ export default function DashboardLayout() {
             </aside>
 
             <main className="dashboard-main">
-                <Outlet />
+                {/* Always keep TerminalPage mounted so xterm terminals survive navigation */}
+                <div style={{ display: location.pathname === '/dashboard/terminal' ? 'contents' : 'none' }}>
+                    <TerminalPage />
+                </div>
+                {location.pathname !== '/dashboard/terminal' && <Outlet />}
             </main>
         </div>
     );
