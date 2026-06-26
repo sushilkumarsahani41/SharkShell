@@ -34,9 +34,37 @@ SharkShell is a modern, self-hosted web-based SSH terminal and keystore manager.
 | 💾 **Session Persistence** | Sessions survive page refresh — click to reconnect |
 | 🎨 **Modern UI** | Glassmorphic design with dark mode and micro-animations |
 
-## 🐳 Quick Start (Docker)
+## 🐳 Quick Start
 
-**Recommended** — deploy with a single command:
+### Docker Compose (Recommended)
+
+```bash
+# Download the compose file
+curl -O https://raw.githubusercontent.com/sushilkumarsahani41/SharkShell/main/docker-compose.yml
+
+# Start SharkShell
+docker compose up -d
+```
+
+Open **http://localhost:8080** 🚀
+
+To change the port, create a `.env` file next to `docker-compose.yml`:
+
+```env
+COMPOSE_PORT=9000
+```
+
+**Upgrading** is a single command:
+
+```bash
+docker compose pull && docker compose up -d
+```
+
+Your database and secrets are in named volumes — they survive every upgrade automatically.
+
+---
+
+### Docker Run (Quick One-Liner)
 
 ```bash
 docker run -d \
@@ -47,13 +75,20 @@ docker run -d \
   greatsharktech/sharkshell:latest
 ```
 
-Open **http://localhost:8080** 🚀
+### Bring Your Own Database
 
-> **First-Time Setup:** On your initial visit, SharkShell will detect a fresh database and prompt you with the **Admin Account Setup** screen. Create your administrative account to access the dashboard. Open registration is automatically disabled immediately afterward to secure your instance.
+Set all four `DB_*` vars — SharkShell skips the internal PostgreSQL and connects to yours instead.
 
-> **Data Persistence:** The two `-v` flags mount named Docker volumes for the embedded PostgreSQL database (`sharkshell-pgdata`) and auto-generated secrets (`sharkshell-secrets`). Your data and credentials survive container restarts and redeployments.
+**Docker Compose** — add to `.env`:
 
-### Docker Run (Bring Your Own Database)
+```env
+DB_HOST=your-db-host
+DB_USER=your-user
+DB_PASSWORD=your-password
+DB_NAME=sharkshell
+```
+
+**Docker Run**:
 
 ```bash
 docker run -d \
@@ -66,6 +101,10 @@ docker run -d \
   -v sharkshell-secrets:/app/secrets \
   greatsharktech/sharkshell:latest
 ```
+
+> **First-Time Setup:** On your initial visit, SharkShell detects a fresh database and shows the **Admin Account Setup** screen. Create your admin account — open registration is disabled immediately afterward to secure your instance.
+
+> **Data Persistence:** All data lives in named Docker volumes (`sharkshell-pgdata`, `sharkshell-secrets`). Both `docker run` and `docker compose` use the same volume names, so you can switch between the two without losing anything.
 
 ## ⚙️ Configuration
 

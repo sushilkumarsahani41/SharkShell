@@ -1,0 +1,41 @@
+name: sharkshell
+
+services:
+  sharkshell:
+    image: greatsharktech/sharkshell:latest
+    container_name: sharkshell
+    restart: unless-stopped
+    ports:
+      - "${COMPOSE_PORT:-8080}:80"
+    volumes:
+      - pgdata:/app/pgdata
+      - secrets:/app/secrets
+    environment:
+      # ── External Database ──────────────────────────────────────────────────
+      # Leave all DB_* blank to use the built-in PostgreSQL (recommended for
+      # single-server installs). Data is persisted in the pgdata volume.
+      # To use your own Postgres, set all four vars:
+      DB_HOST: ${DB_HOST:-}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_USER: ${DB_USER:-}
+      DB_PASSWORD: ${DB_PASSWORD:-}
+      DB_NAME: ${DB_NAME:-}
+      # ── Security ───────────────────────────────────────────────────────────
+      # Auto-generated on first boot and stored in the secrets volume.
+      # Override only if you need to restore or sync secrets across instances.
+      JWT_SECRET: ${JWT_SECRET:-}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/api/auth/setup-status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+# Volume names match the docker run example so existing data is preserved
+# when migrating from: docker run -v sharkshell-pgdata:/app/pgdata ...
+volumes:
+  pgdata:
+    name: sharkshell-pgdata
+  secrets:
+    name: sharkshell-secrets
