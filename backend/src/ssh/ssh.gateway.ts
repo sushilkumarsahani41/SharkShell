@@ -92,21 +92,27 @@ export class SshGateway implements OnGatewayConnection, OnGatewayDisconnect {
             };
 
             // Auth: key-based or password
-            if (host.auth_type === 'key' && host.ssh_key_id) {
+            if (host.auth_type === 'key') {
+                if (!host.ssh_key_id) {
+                    socket.emit('ssh:error', { message: 'No SSH key assigned to this host. Edit the host and select a key.' });
+                    return;
+                }
                 const keyResult = await this.db.query(
                     'SELECT * FROM ssh_keys WHERE id = $1 AND user_id = $2',
                     [host.ssh_key_id, userId],
                 );
-                if (keyResult.rows.length > 0) {
-                    const key = keyResult.rows[0];
-                    const privateKey = this.cryptoService.decrypt(key.private_key_encrypted, key.iv, key.auth_tag);
-                    connConfig.privateKey = privateKey;
+                if (keyResult.rows.length === 0) {
+                    socket.emit('ssh:error', { message: 'The SSH key assigned to this host no longer exists. Edit the host and select a valid key.' });
+                    return;
+                }
+                const key = keyResult.rows[0];
+                const privateKey = this.cryptoService.decrypt(key.private_key_encrypted, key.iv, key.auth_tag);
+                connConfig.privateKey = privateKey;
 
-                    if (passphrase) {
-                        connConfig.passphrase = passphrase;
-                    } else if (key.passphrase_encrypted && key.passphrase_iv && key.passphrase_auth_tag) {
-                        connConfig.passphrase = this.cryptoService.decrypt(key.passphrase_encrypted, key.passphrase_iv, key.passphrase_auth_tag);
-                    }
+                if (passphrase) {
+                    connConfig.passphrase = passphrase;
+                } else if (key.passphrase_encrypted && key.passphrase_iv && key.passphrase_auth_tag) {
+                    connConfig.passphrase = this.cryptoService.decrypt(key.passphrase_encrypted, key.passphrase_iv, key.passphrase_auth_tag);
                 }
             } else if (host.auth_type === 'password') {
                 if (password) {

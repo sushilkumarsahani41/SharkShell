@@ -240,7 +240,20 @@ export class KeysService {
             }, 20000);
 
             client.on('ready', () => {
-                const cmd = `mkdir -p ~/.ssh && chmod 700 ~/.ssh && echo '${publicKey}' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys && echo 'KEY_EXPORTED_OK'`;
+                // Escape any single quotes in the key (shouldn't happen in valid OpenSSH keys, but be safe)
+                const escapedKey = publicKey.replace(/'/g, "'\\''");
+                // - touch ensures the file exists
+                // - grep -qxF skips append if the exact key line is already present (idempotent)
+                // - `echo >> file` adds a trailing newline first so the new key never gets
+                //   concatenated onto the last line of a file that lacks a final newline
+                const cmd = [
+                    'mkdir -p ~/.ssh',
+                    'chmod 700 ~/.ssh',
+                    'touch ~/.ssh/authorized_keys',
+                    'chmod 600 ~/.ssh/authorized_keys',
+                    `grep -qxF '${escapedKey}' ~/.ssh/authorized_keys || (echo >> ~/.ssh/authorized_keys && echo '${escapedKey}' >> ~/.ssh/authorized_keys)`,
+                    'echo KEY_EXPORTED_OK',
+                ].join(' && ');
                 client.exec(cmd, (err, stream) => {
                     if (err) {
                         clearTimeout(timeout);
