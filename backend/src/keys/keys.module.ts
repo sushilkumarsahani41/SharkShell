@@ -7,5 +7,6 @@ import { AuthModule } from '../auth/auth.module';
     imports: [AuthModule],
     controllers: [KeysController],
     providers: [KeysService],
+    exports: [KeysService],
 })
 export class KeysModule { }

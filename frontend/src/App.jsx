@@ -7,6 +7,7 @@ import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
 import HostsPage from './pages/HostsPage';
 import KeystorePage from './pages/KeystorePage';
+import SettingsPage from './pages/SettingsPage';
 
 function PrivateRoute({ children }) {
     const { user, loading, loadingSetup } = useAuth();
@@ -37,6 +38,7 @@ export default function App() {
                 <Route path="hosts" element={<HostsPage />} />
                 <Route path="keys" element={<KeystorePage />} />
                 <Route path="terminal" element={null} />
+                <Route path="settings" element={<SettingsPage />} />
             </Route>
         </Routes>
     );

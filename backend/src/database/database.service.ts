@@ -94,6 +94,17 @@ export class DatabaseService implements OnModuleDestroy {
       )
     `);
 
+    await this.query(`
+      CREATE TABLE IF NOT EXISTS mcp_tokens (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        token_hash VARCHAR(64) UNIQUE NOT NULL,
+        token_prefix VARCHAR(16) NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW(),
+        last_used_at TIMESTAMP
+      )
+    `);
+
     // Fix foreign key constraint
     try {
       await this.query(`ALTER TABLE hosts DROP CONSTRAINT IF EXISTS hosts_ssh_key_id_fkey`);

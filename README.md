@@ -33,6 +33,7 @@ SharkShell is a modern, self-hosted web-based SSH terminal and keystore manager.
 | 👥 **Host & Key Groups** | Color-coded groups with glowing visual indicators |
 | 💾 **Session Persistence** | Sessions survive page refresh — click to reconnect |
 | 🎨 **Modern UI** | Glassmorphic design with dark mode and micro-animations |
+| 🤖 **MCP Access** | Built-in MCP server so AI assistants can manage your hosts and run commands |
 
 ## 🐳 Quick Start
 
@@ -120,6 +121,30 @@ All settings are optional — SharkShell auto-generates secure defaults if not p
 | `ENCRYPTION_KEY` | *auto-generated* | AES-256 key (64-char hex string) |
 | `JWT_SECRET` | *auto-generated RSA* | JWT signing key (RSA 2048-bit keypair) |
 | `COMPOSE_PORT` | `8080` | Exposed HTTP port |
+
+## 🤖 MCP Access
+
+SharkShell ships with a built-in [Model Context Protocol](https://modelcontextprotocol.io) server, so AI assistants like Claude can work with your infrastructure through SharkShell.
+
+1. Open **Settings → MCP Access** and click **Create Access Key** (shown once — copy it).
+2. Connect a client to the Streamable HTTP endpoint:
+
+```bash
+claude mcp add --transport http sharkshell https://your-sharkshell-host/api/mcp \
+  --header "Authorization: Bearer ssk_your_access_key"
+```
+
+Available tools:
+
+| Tool | Description |
+|------|-------------|
+| `list_hosts` | List saved SSH hosts (no secrets) |
+| `list_ssh_keys` | List keystore metadata + public keys (private keys never leave the server) |
+| `run_command` | Execute a command on a saved host using its stored credentials |
+
+The key can be **reset** (rotates immediately) or **revoked** at any time from the same panel. Keys are stored as SHA-256 hashes — SharkShell never persists the plaintext.
+
+> ⚠️ An MCP access key grants command execution on all your saved hosts. Treat it like a password.
 
 ## 🏗️ Architecture
 

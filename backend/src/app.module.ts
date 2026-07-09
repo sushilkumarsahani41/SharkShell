@@ -7,6 +7,7 @@ import { HostsModule } from './hosts/hosts.module';
 import { KeysModule } from './keys/keys.module';
 import { SshModule } from './ssh/ssh.module';
 import { GroupsModule } from './groups/groups.module';
+import { McpModule } from './mcp/mcp.module';
 
 @Module({
     imports: [
@@ -17,6 +18,7 @@ import { GroupsModule } from './groups/groups.module';
         KeysModule,
         SshModule,
         GroupsModule,
+        McpModule,
     ],
     controllers: [AppController]
 })

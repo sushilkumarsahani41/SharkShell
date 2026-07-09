@@ -2285,3 +2285,164 @@ a.stat-card {
     transform: scale(1.15);
     box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1), 0 4px 12px rgba(0, 0, 0, 0.3);
 }
+/* ═══════════════ Settings / MCP Access ═══════════════ */
+
+.settings-section {
+    max-width: 780px;
+    padding: 28px;
+}
+
+.settings-section-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.settings-section-header h2 {
+    font-size: 18px;
+    margin-bottom: 4px;
+}
+
+.settings-section-header p {
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.settings-section-header .badge {
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+.settings-section-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-md);
+    background: var(--accent-gradient);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    flex-shrink: 0;
+    box-shadow: 0 4px 16px var(--accent-glow);
+}
+
+.mcp-key-status {
+    background: var(--bg-input);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 16px 18px;
+    margin-bottom: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    font-size: 13px;
+}
+
+.mcp-key-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.mcp-key-label {
+    color: var(--text-tertiary);
+    width: 90px;
+    flex-shrink: 0;
+}
+
+.mcp-key-code {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text-accent);
+    font-size: 12px;
+}
+
+.mcp-new-key {
+    background: rgba(16, 185, 129, 0.08);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    border-radius: var(--radius-md);
+    padding: 16px 18px;
+    margin-bottom: 18px;
+}
+
+.mcp-new-key-header {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-bottom: 12px;
+}
+
+.mcp-new-key-header strong {
+    font-size: 14px;
+    color: var(--success);
+}
+
+.mcp-new-key-header span {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.mcp-key-reveal {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--bg-input);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    margin-bottom: 14px;
+}
+
+.mcp-key-reveal code,
+.mcp-key-reveal pre {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--text-primary);
+    flex: 1;
+    overflow-x: auto;
+    white-space: pre;
+    word-break: normal;
+}
+
+.mcp-key-reveal .btn {
+    flex-shrink: 0;
+}
+
+.mcp-key-reveal-block {
+    align-items: flex-start;
+}
+
+.mcp-inline-code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--text-accent);
+}
+
+.mcp-actions {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 24px;
+}
+
+.mcp-setup {
+    border-top: 1px solid var(--border-subtle);
+    padding-top: 20px;
+}
+
+.mcp-setup h3 {
+    font-size: 15px;
+    margin-bottom: 12px;
+}
+
+.mcp-setup p {
+    color: var(--text-secondary);
+    font-size: 13px;
+    margin-bottom: 8px;
+}
+
+.mcp-note {
+    color: var(--warning) !important;
+    font-size: 12px !important;
+    margin-top: 4px;
+}
