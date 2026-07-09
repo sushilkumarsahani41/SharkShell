@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Req, Res } from '@nestjs/common';
 import { Request, Response } from 'express';
-import { McpTokenService } from './mcp-token.service';
+import { McpTokenService, McpKey } from './mcp-token.service';
 import { McpService } from './mcp.service';
 
 const PROTOCOL_VERSION = '2025-03-26';
@@ -21,8 +21,8 @@ export class McpController {
     async handle(@Req() req: Request, @Res() res: Response) {
         const authHeader = req.headers.authorization || '';
         const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
-        const auth = await this.mcpTokenService.validate(token);
-        if (!auth) {
+        const key = await this.mcpTokenService.validate(token);
+        if (!key) {
             return res.status(401).json({
                 jsonrpc: '2.0',
                 id: null,
@@ -32,18 +32,18 @@ export class McpController {
 
         const body = req.body;
         if (Array.isArray(body)) {
-            const responses = (await Promise.all(body.map((m) => this.handleMessage(auth.userId, m))))
+            const responses = (await Promise.all(body.map((m) => this.handleMessage(key, m))))
                 .filter((r) => r !== null);
             if (responses.length === 0) return res.status(202).send();
             return res.json(responses);
         }
 
-        const response = await this.handleMessage(auth.userId, body);
+        const response = await this.handleMessage(key, body);
         if (response === null) return res.status(202).send();
         return res.json(response);
     }
 
-    private async handleMessage(userId: string, msg: any): Promise<any | null> {
+    private async handleMessage(key: McpKey, msg: any): Promise<any | null> {
         if (!msg || msg.jsonrpc !== '2.0' || typeof msg.method !== 'string') {
             // Responses from the client (results/errors) need no reply
             if (msg && msg.jsonrpc === '2.0' && msg.id !== undefined) return null;
@@ -54,7 +54,7 @@ export class McpController {
         if (msg.id === undefined || msg.id === null) return null;
 
         try {
-            const result = await this.dispatch(userId, msg.method, msg.params || {});
+            const result = await this.dispatch(key, msg.method, msg.params || {});
             return { jsonrpc: '2.0', id: msg.id, result };
         } catch (err: any) {
             return {
@@ -65,20 +65,20 @@ export class McpController {
         }
     }
 
-    private async dispatch(userId: string, method: string, params: any) {
+    private async dispatch(key: McpKey, method: string, params: any) {
         switch (method) {
             case 'initialize':
                 return {
                     protocolVersion: params.protocolVersion || PROTOCOL_VERSION,
                     capabilities: { tools: {} },
-                    serverInfo: { name: 'SharkShell', version: '1.4.0' },
+                    serverInfo: { name: 'SharkShell', version: '1.4.1' },
                 };
             case 'ping':
                 return {};
             case 'tools/list':
-                return { tools: this.mcpService.listTools() };
+                return { tools: this.mcpService.listTools(key) };
             case 'tools/call':
-                return this.mcpService.callTool(userId, params.name, params.arguments || {});
+                return this.mcpService.callTool(key, params.name, params.arguments || {});
             default: {
                 const err: any = new Error(`Method not found: ${method}`);
                 err.rpcCode = -32601;

@@ -126,7 +126,7 @@ All settings are optional — SharkShell auto-generates secure defaults if not p
 
 SharkShell ships with a built-in [Model Context Protocol](https://modelcontextprotocol.io) server, so AI assistants like Claude can work with your infrastructure through SharkShell.
 
-1. Open **Settings → MCP Access** and click **Create Access Key** (shown once — copy it).
+1. Open **Settings → MCP Access** and click **New Access Key** (shown once — copy it).
 2. Connect a client to the Streamable HTTP endpoint:
 
 ```bash
@@ -134,17 +134,19 @@ claude mcp add --transport http sharkshell https://your-sharkshell-host/api/mcp 
   --header "Authorization: Bearer ssk_your_access_key"
 ```
 
+Each key is **scoped**: choose **read-only vs. execute** and limit it to **specific hosts or groups** (or all hosts). Scope and capability are enforced server-side on every call, and every tool call is recorded in an **activity log**. Keys can be **reset** (rotate) or **revoked** anytime, and are stored only as SHA-256 hashes.
+
 Available tools:
 
 | Tool | Description |
 |------|-------------|
-| `list_hosts` | List saved SSH hosts (no secrets) |
+| `list_hosts` | List in-scope SSH hosts (no secrets) |
 | `list_ssh_keys` | List keystore metadata + public keys (private keys never leave the server) |
-| `run_command` | Execute a command on a saved host using its stored credentials |
+| `run_command` | Execute a command on an in-scope host using its stored credentials (`execute` keys only) |
 
-The key can be **reset** (rotates immediately) or **revoked** at any time from the same panel. Keys are stored as SHA-256 hashes — SharkShell never persists the plaintext.
+📖 **Full guide, tool schemas, and security model: [docs/MCP.md](docs/MCP.md)**
 
-> ⚠️ An MCP access key grants command execution on all your saved hosts. Treat it like a password.
+> ⚠️ `run_command` is a real shell — a scoped `execute` key can read that host's own secrets via commands. Scope keys tightly and serve SharkShell over HTTPS.
 
 ## 🏗️ Architecture
 

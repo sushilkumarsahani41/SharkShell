@@ -97,13 +97,50 @@ export class DatabaseService implements OnModuleDestroy {
     await this.query(`
       CREATE TABLE IF NOT EXISTS mcp_tokens (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        user_id UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         token_hash VARCHAR(64) UNIQUE NOT NULL,
         token_prefix VARCHAR(16) NOT NULL,
+        label VARCHAR(255) NOT NULL DEFAULT 'Default',
+        capability VARCHAR(20) NOT NULL DEFAULT 'execute',
+        scope_all BOOLEAN NOT NULL DEFAULT true,
+        allowed_host_ids UUID[] NOT NULL DEFAULT '{}',
+        allowed_group_ids UUID[] NOT NULL DEFAULT '{}',
         created_at TIMESTAMP DEFAULT NOW(),
         last_used_at TIMESTAMP
       )
     `);
+
+    // Migrate mcp_tokens: single-key-per-user -> multiple scoped keys
+    const mcpAlters = [
+      "ALTER TABLE mcp_tokens DROP CONSTRAINT IF EXISTS mcp_tokens_user_id_key",
+      "ALTER TABLE mcp_tokens ADD COLUMN IF NOT EXISTS label VARCHAR(255) NOT NULL DEFAULT 'Default'",
+      "ALTER TABLE mcp_tokens ADD COLUMN IF NOT EXISTS capability VARCHAR(20) NOT NULL DEFAULT 'execute'",
+      "ALTER TABLE mcp_tokens ADD COLUMN IF NOT EXISTS scope_all BOOLEAN NOT NULL DEFAULT true",
+      "ALTER TABLE mcp_tokens ADD COLUMN IF NOT EXISTS allowed_host_ids UUID[] NOT NULL DEFAULT '{}'",
+      "ALTER TABLE mcp_tokens ADD COLUMN IF NOT EXISTS allowed_group_ids UUID[] NOT NULL DEFAULT '{}'",
+    ];
+    for (const q of mcpAlters) {
+      try { await this.query(q); } catch { }
+    }
+
+    await this.query(`
+      CREATE TABLE IF NOT EXISTS mcp_audit_log (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        token_id UUID REFERENCES mcp_tokens(id) ON DELETE SET NULL,
+        token_label VARCHAR(255),
+        tool_name VARCHAR(64) NOT NULL,
+        host_id UUID,
+        host_name VARCHAR(255),
+        command TEXT,
+        status VARCHAR(20) NOT NULL,
+        detail TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    try {
+      await this.query('CREATE INDEX IF NOT EXISTS idx_mcp_audit_user ON mcp_audit_log (user_id, created_at DESC)');
+    } catch { }
 
     // Fix foreign key constraint
     try {
