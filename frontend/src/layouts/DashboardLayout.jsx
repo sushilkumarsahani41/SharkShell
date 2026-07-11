@@ -42,6 +42,16 @@ const navItems = [
         ),
     },
     {
+        label: 'MCP',
+        href: '/dashboard/mcp',
+        icon: (
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2a4 4 0 0 1 4 4v2h1a3 3 0 0 1 3 3v7a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3v-7a3 3 0 0 1 3-3h1V6a4 4 0 0 1 4-4z" />
+                <circle cx="12" cy="15" r="1.5" />
+            </svg>
+        ),
+    },
+    {
         label: 'Settings',
         href: '/dashboard/settings',
         icon: (

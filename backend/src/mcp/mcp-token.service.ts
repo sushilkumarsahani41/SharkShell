@@ -42,7 +42,8 @@ export class McpTokenService {
     }
 
     private normalizeScope(input: KeyInput) {
-        const capability: McpCapability = input.capability === 'read_only' ? 'read_only' : 'execute';
+        // Fail closed: only an explicit 'execute' grants command execution; anything else is read-only.
+        const capability: McpCapability = input.capability === 'execute' ? 'execute' : 'read_only';
         const allowedHostIds = Array.isArray(input.allowedHostIds) ? input.allowedHostIds : [];
         const allowedGroupIds = Array.isArray(input.allowedGroupIds) ? input.allowedGroupIds : [];
         // scope_all defaults to true only when the caller neither opts out nor names any scope.

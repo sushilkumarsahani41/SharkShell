@@ -2451,3 +2451,13 @@ a.stat-card {
 .mcp-scope-heading:first-child { margin-top: 0; }
 
 .mcp-note { color: var(--warning) !important; font-size: 12px !important; }
+
+/* ─── Settings account section ─── */
+.settings-section { padding: 24px; max-width: 720px; }
+.settings-section-header { display: flex; gap: 16px; align-items: flex-start; margin-bottom: 18px; }
+.settings-section-header h2 { font-size: 17px; margin-bottom: 3px; }
+.settings-section-header p { color: var(--text-secondary); font-size: 13px; }
+.settings-field-list { display: flex; flex-direction: column; gap: 2px; }
+.settings-field { display: flex; gap: 16px; padding: 12px 4px; border-top: 1px solid var(--border-subtle); font-size: 14px; }
+.settings-field:first-child { border-top: none; }
+.settings-field-label { color: var(--text-tertiary); width: 130px; flex-shrink: 0; }
