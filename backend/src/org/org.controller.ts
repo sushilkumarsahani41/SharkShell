@@ -57,7 +57,7 @@ export class OrgController {
     async updateUser(
         @Req() req: any,
         @Param('id') id: string,
-        @Body() body: { role?: string; is_active?: boolean; password?: string },
+        @Body() body: { role?: string; is_active?: boolean; password?: string; reset_2fa?: boolean },
     ) {
         return { user: await this.orgService.updateUser(req.user.org_id, req.user.id, id, body) };
     }

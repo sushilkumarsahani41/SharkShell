@@ -39,7 +39,7 @@ export class SshGateway implements OnGatewayConnection, OnGatewayDisconnect {
         }
 
         const decoded = this.authService.verifyToken(token);
-        if (!decoded) {
+        if (!decoded || decoded.twofa_pending) {
             socket.emit('ssh:error', { message: 'Invalid token' });
             socket.disconnect();
             return;

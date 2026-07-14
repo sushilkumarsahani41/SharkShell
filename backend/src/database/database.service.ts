@@ -158,6 +158,12 @@ export class DatabaseService implements OnModuleDestroy {
       "ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) NOT NULL DEFAULT 'member'",
       "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true",
       "ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN NOT NULL DEFAULT false",
+      // TOTP two-factor auth (secret AES-256-GCM encrypted; recovery codes stored as SHA-256 hashes)
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret_encrypted TEXT",
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_iv VARCHAR(64)",
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_auth_tag VARCHAR(64)",
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN NOT NULL DEFAULT false",
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_recovery_codes TEXT[] NOT NULL DEFAULT '{}'",
     ];
     for (const q of userAlters) {
       try { await this.query(q); } catch { }

@@ -64,6 +64,22 @@ export function AuthProvider({ children }) {
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
+        // 2FA-enabled accounts get a pending token; the session starts after verify2fa
+        if (data.requires2fa) return data;
+        localStorage.setItem('token', data.token);
+        setToken(data.token);
+        setUser(data.user);
+        return data;
+    }
+
+    async function verify2fa(pendingToken, code) {
+        const res = await fetch(apiUrl('/api/auth/2fa/verify'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pendingToken, code }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
         localStorage.setItem('token', data.token);
         setToken(data.token);
         setUser(data.user);
@@ -109,7 +125,7 @@ export function AuthProvider({ children }) {
     }
 
     return (
-        <AuthContext.Provider value={{ user, token, loading, setupStatus, loadingSetup, login, register, logout, refreshUser, changePassword }}>
+        <AuthContext.Provider value={{ user, token, loading, setupStatus, loadingSetup, login, verify2fa, register, logout, refreshUser, changePassword }}>
             {children}
         </AuthContext.Provider>
     );

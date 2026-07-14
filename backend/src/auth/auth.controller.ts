@@ -5,10 +5,13 @@ import { Request, Response } from 'express';
 import * as crypto from 'crypto';
 import { AuthService } from './auth.service';
 import { AuthGuard } from './auth.guard';
+import { TwoFaService } from './twofa.service';
 import { DatabaseService } from '../database/database.service';
+import { CryptoService } from '../crypto/crypto.service';
 import { MailService } from '../mail/mail.service';
 
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
+const PENDING_2FA_TOKEN_TTL = '5m';
 
 function safeUser(user: any) {
     return {
@@ -18,6 +21,7 @@ function safeUser(user: any) {
         role: user.role,
         org_id: user.org_id,
         must_change_password: user.must_change_password,
+        totp_enabled: user.totp_enabled,
         created_at: user.created_at,
     };
 }
@@ -26,7 +30,9 @@ function safeUser(user: any) {
 export class AuthController {
     constructor(
         private authService: AuthService,
+        private twoFaService: TwoFaService,
         private db: DatabaseService,
+        private cryptoService: CryptoService,
         private mailService: MailService,
     ) { }
 
@@ -63,6 +69,15 @@ export class AuthController {
                 return res.status(403).json({ error: 'Account is deactivated. Contact your administrator.' });
             }
 
+            // Password OK but 2FA enabled → issue a short-lived pending token instead of a session
+            if (user.totp_enabled) {
+                const pendingToken = this.authService.generateToken(
+                    { id: user.id, twofa_pending: true },
+                    PENDING_2FA_TOKEN_TTL,
+                );
+                return res.json({ requires2fa: true, pendingToken });
+            }
+
             const token = this.authService.generateToken({
                 id: user.id, email: user.email, name: user.name, org_id: user.org_id, role: user.role,
             });
@@ -71,6 +86,131 @@ export class AuthController {
             return res.json({ user: safeUser(user), token });
         } catch (err) {
             console.error('Login error:', err);
+            return res.status(500).json({ error: 'Internal server error' });
+        }
+    }
+
+    // Step 2 of login when 2FA is enabled: redeem the pending token with a TOTP or recovery code
+    @Post('2fa/verify')
+    @HttpCode(HttpStatus.OK)
+    async verify2fa(@Body() body: { pendingToken: string; code: string }, @Res() res: Response) {
+        try {
+            const { pendingToken, code } = body;
+            if (!pendingToken || !code) {
+                return res.status(400).json({ error: 'Code is required' });
+            }
+            const payload = this.authService.verifyToken(pendingToken);
+            if (!payload?.twofa_pending || !payload.id) {
+                return res.status(401).json({ error: 'Sign-in expired. Enter your password again.' });
+            }
+            if (this.twoFaService.isLocked(payload.id)) {
+                return res.status(429).json({ error: 'Too many attempts. Try again in a few minutes.' });
+            }
+
+            const result = await this.db.query('SELECT * FROM users WHERE id = $1', [payload.id]);
+            const user = result.rows[0];
+            if (!user || user.is_active === false || !user.totp_enabled) {
+                return res.status(401).json({ error: 'Sign-in expired. Enter your password again.' });
+            }
+
+            const secret = this.twoFaService.decryptSecret(user);
+            const totpOk = secret ? this.twoFaService.verifyCode(secret, code) : false;
+            const recoveryOk = totpOk ? false : await this.twoFaService.useRecoveryCode(user, code);
+            if (!totpOk && !recoveryOk) {
+                this.twoFaService.recordFailure(user.id);
+                return res.status(401).json({ error: 'Invalid authentication code' });
+            }
+            this.twoFaService.clearFailures(user.id);
+
+            const token = this.authService.generateToken({
+                id: user.id, email: user.email, name: user.name, org_id: user.org_id, role: user.role,
+            });
+            this.setAuthCookie(res, token);
+            return res.json({
+                user: safeUser(user),
+                token,
+                usedRecoveryCode: recoveryOk,
+                recoveryCodesLeft: recoveryOk ? Math.max((user.totp_recovery_codes?.length || 1) - 1, 0) : undefined,
+            });
+        } catch (err) {
+            console.error('2FA verify error:', err);
+            return res.status(500).json({ error: 'Internal server error' });
+        }
+    }
+
+    // Begin enrollment: store an (inactive) secret and return the QR to scan
+    @Post('2fa/setup')
+    @UseGuards(AuthGuard)
+    @HttpCode(HttpStatus.OK)
+    async setup2fa(@Req() req: any, @Res() res: Response) {
+        try {
+            const result = await this.db.query('SELECT * FROM users WHERE id = $1', [req.user.id]);
+            const user = result.rows[0];
+            if (user.totp_enabled) {
+                return res.status(400).json({ error: 'Two-factor authentication is already enabled' });
+            }
+            const secret = this.twoFaService.generateSecret();
+            const { encrypted, iv, authTag } = this.cryptoService.encrypt(secret);
+            await this.db.query(
+                'UPDATE users SET totp_secret_encrypted = $1, totp_iv = $2, totp_auth_tag = $3 WHERE id = $4',
+                [encrypted, iv, authTag, req.user.id],
+            );
+            const { otpauthUrl, qrDataUrl } = await this.twoFaService.buildEnrollment(user.email, secret);
+            return res.json({ secret, otpauthUrl, qrDataUrl });
+        } catch (err) {
+            console.error('2FA setup error:', err);
+            return res.status(500).json({ error: 'Internal server error' });
+        }
+    }
+
+    // Confirm enrollment with a code from the app; returns recovery codes exactly once
+    @Post('2fa/enable')
+    @UseGuards(AuthGuard)
+    @HttpCode(HttpStatus.OK)
+    async enable2fa(@Req() req: any, @Body() body: { code: string }, @Res() res: Response) {
+        try {
+            const result = await this.db.query('SELECT * FROM users WHERE id = $1', [req.user.id]);
+            const user = result.rows[0];
+            if (user.totp_enabled) {
+                return res.status(400).json({ error: 'Two-factor authentication is already enabled' });
+            }
+            const secret = this.twoFaService.decryptSecret(user);
+            if (!secret) {
+                return res.status(400).json({ error: 'Start setup first' });
+            }
+            if (!this.twoFaService.verifyCode(secret, body.code)) {
+                return res.status(400).json({ error: 'Invalid code — check your authenticator app and try again' });
+            }
+            const { codes, hashes } = this.twoFaService.generateRecoveryCodes();
+            await this.db.query(
+                'UPDATE users SET totp_enabled = true, totp_recovery_codes = $1 WHERE id = $2',
+                [hashes, req.user.id],
+            );
+            return res.json({ enabled: true, recoveryCodes: codes });
+        } catch (err) {
+            console.error('2FA enable error:', err);
+            return res.status(500).json({ error: 'Internal server error' });
+        }
+    }
+
+    @Post('2fa/disable')
+    @UseGuards(AuthGuard)
+    @HttpCode(HttpStatus.OK)
+    async disable2fa(@Req() req: any, @Body() body: { password: string }, @Res() res: Response) {
+        try {
+            if (!body.password) {
+                return res.status(400).json({ error: 'Password is required' });
+            }
+            const result = await this.db.query('SELECT * FROM users WHERE id = $1', [req.user.id]);
+            const user = result.rows[0];
+            const valid = await this.authService.verifyPassword(body.password, user.password_hash);
+            if (!valid) {
+                return res.status(401).json({ error: 'Password is incorrect' });
+            }
+            await this.twoFaService.clearTwoFa(req.user.id);
+            return res.json({ enabled: false });
+        } catch (err) {
+            console.error('2FA disable error:', err);
             return res.status(500).json({ error: 'Internal server error' });
         }
     }

@@ -7,7 +7,9 @@ export default function LoginPage() {
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const { login, setupStatus } = useAuth();
+    const [pendingToken, setPendingToken] = useState(null); // set → show 2FA step
+    const [code, setCode] = useState('');
+    const { login, verify2fa, setupStatus } = useAuth();
     const navigate = useNavigate();
 
     if (setupStatus?.requireSetup) {
@@ -19,10 +21,33 @@ export default function LoginPage() {
         setError('');
         setIsLoading(true);
         try {
-            await login(email, password);
+            const data = await login(email, password);
+            if (data.requires2fa) {
+                setPendingToken(data.pendingToken);
+                return;
+            }
             navigate('/dashboard');
         } catch (err) {
             setError(err.message);
+        } finally {
+            setIsLoading(false);
+        }
+    }
+
+    async function handleVerify(e) {
+        e.preventDefault();
+        setError('');
+        setIsLoading(true);
+        try {
+            await verify2fa(pendingToken, code);
+            navigate('/dashboard');
+        } catch (err) {
+            setError(err.message);
+            // Pending token may have expired — send them back to step 1
+            if (/expired/i.test(err.message)) {
+                setPendingToken(null);
+                setCode('');
+            }
         } finally {
             setIsLoading(false);
         }
@@ -51,23 +76,40 @@ export default function LoginPage() {
                         </svg>
                         <h1>SharkShell</h1>
                     </div>
-                    <p className="auth-subtitle">Sign in to your account</p>
+                    <p className="auth-subtitle">{pendingToken ? 'Two-factor authentication' : 'Sign in to your account'}</p>
 
-                    <form onSubmit={handleSubmit} className="auth-form">
-                        {error && <div className="auth-error">{error}</div>}
-                        <div className="input-group">
-                            <label>Email</label>
-                            <input type="email" className="input-field" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
-                        </div>
-                        <div className="input-group">
-                            <label>Password</label>
-                            <input type="password" className="input-field" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required />
-                        </div>
-                        <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%' }} disabled={isLoading}>
-                            {isLoading ? <span className="spinner" /> : 'Sign In'}
-                        </button>
-                        <p className="auth-switch"><Link to="/forgot-password">Forgot password?</Link></p>
-                    </form>
+                    {pendingToken ? (
+                        <form onSubmit={handleVerify} className="auth-form">
+                            {error && <div className="auth-error">{error}</div>}
+                            <div className="input-group">
+                                <label>Authentication code</label>
+                                <input className="input-field" placeholder="6-digit code or recovery code" value={code} onChange={(e) => setCode(e.target.value)} autoComplete="one-time-code" required autoFocus />
+                            </div>
+                            <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%' }} disabled={isLoading}>
+                                {isLoading ? <span className="spinner" /> : 'Verify'}
+                            </button>
+                            <p className="auth-switch">
+                                Enter the code from your authenticator app, or a recovery code.{' '}
+                                <a href="#" onClick={(e) => { e.preventDefault(); setPendingToken(null); setCode(''); setError(''); }}>Back</a>
+                            </p>
+                        </form>
+                    ) : (
+                        <form onSubmit={handleSubmit} className="auth-form">
+                            {error && <div className="auth-error">{error}</div>}
+                            <div className="input-group">
+                                <label>Email</label>
+                                <input type="email" className="input-field" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                            </div>
+                            <div className="input-group">
+                                <label>Password</label>
+                                <input type="password" className="input-field" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                            </div>
+                            <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%' }} disabled={isLoading}>
+                                {isLoading ? <span className="spinner" /> : 'Sign In'}
+                            </button>
+                            <p className="auth-switch"><Link to="/forgot-password">Forgot password?</Link></p>
+                        </form>
+                    )}
                 </div>
             </div>
         </div>

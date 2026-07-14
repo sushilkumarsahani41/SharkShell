@@ -2515,6 +2515,32 @@ a.stat-card {
 }
 
 .member-you { color: var(--text-tertiary); font-size: 11px; }
+
+/* 2FA enrollment */
+.twofa-enroll { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
+.twofa-qr {
+    background: white;
+    border-radius: var(--radius-md);
+    padding: 10px;
+    line-height: 0;
+    flex-shrink: 0;
+}
+.twofa-steps { flex: 1; min-width: 260px; display: flex; flex-direction: column; gap: 10px; }
+
+.recovery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 8px;
+}
+.recovery-grid code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    background: var(--bg-input);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-sm);
+    padding: 6px 8px;
+    text-align: center;
+}
 .member-actions { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
 .btn-danger-text { color: var(--danger) !important; }
 

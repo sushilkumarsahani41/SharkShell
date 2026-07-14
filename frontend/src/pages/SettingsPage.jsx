@@ -11,6 +11,157 @@ function generatePassword() {
     return pw;
 }
 
+// ─── Two-factor authentication card ───
+
+function TwoFactorCard() {
+    const { user, token, refreshUser } = useAuth();
+    const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+
+    const [enrollment, setEnrollment] = useState(null); // { secret, qrDataUrl }
+    const [code, setCode] = useState('');
+    const [recoveryCodes, setRecoveryCodes] = useState(null);
+    const [disablePassword, setDisablePassword] = useState('');
+    const [showDisable, setShowDisable] = useState(false);
+    const [msg, setMsg] = useState(null);
+    const [busy, setBusy] = useState(false);
+
+    async function api(path, body) {
+        const res = await fetch(apiUrl(path), { method: 'POST', headers, body: body ? JSON.stringify(body) : undefined });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        return data;
+    }
+
+    async function handleStart() {
+        setMsg(null);
+        setBusy(true);
+        try {
+            setEnrollment(await api('/api/auth/2fa/setup'));
+        } catch (err) {
+            setMsg({ type: 'error', text: err.message });
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    async function handleEnable(e) {
+        e.preventDefault();
+        setMsg(null);
+        setBusy(true);
+        try {
+            const data = await api('/api/auth/2fa/enable', { code });
+            setRecoveryCodes(data.recoveryCodes);
+            setEnrollment(null);
+            setCode('');
+            await refreshUser();
+        } catch (err) {
+            setMsg({ type: 'error', text: err.message });
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    async function handleDisable(e) {
+        e.preventDefault();
+        setMsg(null);
+        setBusy(true);
+        try {
+            await api('/api/auth/2fa/disable', { password: disablePassword });
+            setShowDisable(false);
+            setDisablePassword('');
+            setMsg({ type: 'success', text: 'Two-factor authentication disabled' });
+            await refreshUser();
+        } catch (err) {
+            setMsg({ type: 'error', text: err.message });
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    return (
+        <div className="settings-section glass-card" style={{ marginTop: 20 }}>
+            <div className="settings-section-header">
+                <div className="settings-section-icon">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                    </svg>
+                </div>
+                <div>
+                    <h2>Two-factor authentication {user?.totp_enabled
+                        ? <span className="role-badge role-badge-admin" style={{ marginLeft: 6 }}>enabled</span>
+                        : <span className="role-badge" style={{ marginLeft: 6 }}>off</span>}</h2>
+                    <p>Require a code from an authenticator app (Google Authenticator, Authy, 1Password…) when signing in.</p>
+                </div>
+            </div>
+
+            {msg && <div className={msg.type === 'error' ? 'auth-error' : 'auth-success'} style={{ marginBottom: 14 }}>{msg.text}</div>}
+
+            {recoveryCodes && (
+                <div className="glass-card mcp-new-key" style={{ marginBottom: 14 }}>
+                    <div className="mcp-new-key-header">
+                        <strong>Save your recovery codes</strong>
+                        <span>Each works once if you lose your authenticator. They are shown only now.</span>
+                    </div>
+                    <div className="recovery-grid">
+                        {recoveryCodes.map(c => <code key={c}>{c}</code>)}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                        <button className="btn btn-ghost btn-sm" onClick={() => navigator.clipboard.writeText(recoveryCodes.join('\n'))}>Copy all</button>
+                        <button className="btn btn-ghost btn-sm" onClick={() => setRecoveryCodes(null)}>I saved them</button>
+                    </div>
+                </div>
+            )}
+
+            {!user?.totp_enabled && !enrollment && (
+                <button className="btn btn-primary" onClick={handleStart} disabled={busy}>
+                    {busy ? <span className="spinner" /> : 'Enable 2FA'}
+                </button>
+            )}
+
+            {enrollment && (
+                <div className="twofa-enroll">
+                    <div className="twofa-qr">
+                        <img src={enrollment.qrDataUrl} alt="Scan with your authenticator app" width="180" height="180" />
+                    </div>
+                    <div className="twofa-steps">
+                        <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                            1. Scan the QR code with your authenticator app, or enter this key manually:
+                        </p>
+                        <div className="mcp-key-reveal">
+                            <code>{enrollment.secret}</code>
+                            <button className="btn btn-ghost btn-sm" onClick={() => navigator.clipboard.writeText(enrollment.secret)}>Copy</button>
+                        </div>
+                        <form onSubmit={handleEnable}>
+                            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 8 }}>2. Enter the 6-digit code it shows:</p>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                                <input className="input-field" style={{ maxWidth: 160, fontFamily: 'JetBrains Mono, monospace', letterSpacing: 2 }}
+                                    placeholder="000000" value={code} onChange={e => setCode(e.target.value)} inputMode="numeric" pattern="[0-9 ]*" required autoFocus />
+                                <button type="submit" className="btn btn-primary" disabled={busy || code.replace(/\s/g, '').length !== 6}>Confirm</button>
+                                <button type="button" className="btn btn-ghost" onClick={() => { setEnrollment(null); setCode(''); }}>Cancel</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {user?.totp_enabled && !showDisable && (
+                <button className="btn btn-ghost" onClick={() => setShowDisable(true)}>Disable 2FA</button>
+            )}
+
+            {showDisable && (
+                <form onSubmit={handleDisable} style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+                    <div className="input-group" style={{ maxWidth: 260 }}>
+                        <label>Confirm with your password</label>
+                        <input type="password" className="input-field" value={disablePassword} onChange={e => setDisablePassword(e.target.value)} required autoFocus />
+                    </div>
+                    <button type="submit" className="btn btn-primary" disabled={busy}>Disable</button>
+                    <button type="button" className="btn btn-ghost" onClick={() => { setShowDisable(false); setDisablePassword(''); }}>Cancel</button>
+                </form>
+            )}
+        </div>
+    );
+}
+
 // ─── Account tab ───
 
 function AccountTab() {
@@ -99,6 +250,8 @@ function AccountTab() {
                     </div>
                 </form>
             </div>
+
+            <TwoFactorCard />
         </>
     );
 }
@@ -235,7 +388,10 @@ function OrganizationTab() {
                                     <td>{m.name}{m.id === user?.id && <span className="member-you"> (you)</span>}</td>
                                     <td>{m.email}</td>
                                     <td><span className={`role-badge role-badge-${m.role}`}>{m.role}</span></td>
-                                    <td>{m.is_active ? (m.must_change_password ? 'Pending first login' : 'Active') : 'Deactivated'}</td>
+                                    <td>
+                                        {m.is_active ? (m.must_change_password ? 'Pending first login' : 'Active') : 'Deactivated'}
+                                        {m.totp_enabled && <span title="Two-factor authentication enabled"> · 2FA</span>}
+                                    </td>
                                     <td>{new Date(m.created_at).toLocaleDateString()}</td>
                                     <td>
                                         {m.id !== user?.id && (
@@ -245,6 +401,12 @@ function OrganizationTab() {
                                                     {m.role === 'admin' ? '↓ Member' : '↑ Admin'}
                                                 </button>
                                                 <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => handleResetPassword(m)}>Reset&nbsp;pw</button>
+                                                {m.totp_enabled && (
+                                                    <button className="btn btn-ghost btn-sm" disabled={busy} title="For a member who lost their authenticator device"
+                                                        onClick={() => window.confirm(`Remove 2FA from ${m.email}? They can re-enable it in their settings.`) && api(`/api/org/users/${m.id}`, { method: 'PATCH', body: JSON.stringify({ reset_2fa: true }) }, '2FA reset')}>
+                                                        Reset&nbsp;2FA
+                                                    </button>
+                                                )}
                                                 <button className="btn btn-ghost btn-sm" disabled={busy}
                                                     onClick={() => api(`/api/org/users/${m.id}`, { method: 'PATCH', body: JSON.stringify({ is_active: !m.is_active }) }, m.is_active ? 'Member deactivated' : 'Member reactivated')}>
                                                     {m.is_active ? 'Deactivate' : 'Activate'}

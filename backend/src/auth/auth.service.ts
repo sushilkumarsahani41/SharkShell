@@ -15,8 +15,8 @@ export class AuthService {
         return bcrypt.compare(password, hash);
     }
 
-    generateToken(payload: any): string {
-        return jwt.sign(payload, JWT_SECRET, { expiresIn: TOKEN_EXPIRY });
+    generateToken(payload: any, expiresIn: string = TOKEN_EXPIRY): string {
+        return jwt.sign(payload, JWT_SECRET, { expiresIn } as jwt.SignOptions);
     }
 
     verifyToken(token: string): any {
@@ -40,6 +40,9 @@ export class AuthService {
     async authenticateRequest(req: any): Promise<any> {
         const token = this.getTokenFromRequest(req);
         if (!token) return null;
-        return this.verifyToken(token);
+        const payload = this.verifyToken(token);
+        // A pending-2FA token is not a session: it may only be redeemed at /auth/2fa/verify
+        if (payload?.twofa_pending) return null;
+        return payload;
     }
 }

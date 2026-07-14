@@ -1,14 +1,16 @@
 import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { AuthService } from '../auth/auth.service';
+import { TwoFaService } from '../auth/twofa.service';
 
-const USER_COLUMNS = 'id, email, name, role, is_active, must_change_password, created_at';
+const USER_COLUMNS = 'id, email, name, role, is_active, must_change_password, totp_enabled, created_at';
 
 @Injectable()
 export class OrgService {
     constructor(
         private db: DatabaseService,
         private authService: AuthService,
+        private twoFaService: TwoFaService,
     ) { }
 
     async getOrg(orgId: string) {
@@ -83,7 +85,7 @@ export class OrgService {
         orgId: string,
         callerId: string,
         userId: string,
-        data: { role?: string; is_active?: boolean; password?: string },
+        data: { role?: string; is_active?: boolean; password?: string; reset_2fa?: boolean },
     ) {
         const member = await this.getMember(orgId, userId);
 
@@ -98,6 +100,11 @@ export class OrgService {
             if (userId === callerId) throw new ForbiddenException({ error: 'You cannot deactivate your own account' });
             if (data.is_active === false) await this.assertNotLastAdmin(orgId, userId, 'deactivate');
             await this.db.query('UPDATE users SET is_active = $1 WHERE id = $2', [data.is_active, userId]);
+        }
+
+        // Recovery path for a member who lost their authenticator device
+        if (data.reset_2fa) {
+            await this.twoFaService.clearTwoFa(userId);
         }
 
         // Admin sets a new temporary password; user must change it on next login

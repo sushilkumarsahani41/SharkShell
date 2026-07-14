@@ -66,9 +66,10 @@ Turned SharkShell from single-user into a multi-user org with an admin. Shipped 
 - First-run registration creates org + admin together.
 - SMTP: `GET/PUT /api/org/smtp` (password write-only), `POST /api/org/smtp/test`; `MailService` on nodemailer.
 - Forgot password: public `POST /api/auth/forgot-password` (503 when SMTP unconfigured; identical response whether or not the account exists) + `POST /api/auth/reset-password`; `POST /api/auth/change-password` for logged-in users.
+- **TOTP 2FA** (otplib v13 + qrcode): per-user opt-in via `/api/auth/2fa/setup|enable|disable`; secret AES-256-GCM encrypted, 10 single-use recovery codes stored as SHA-256 hashes. Login becomes two-step (`requires2fa` + 5-min pending token redeemed at `/api/auth/2fa/verify`); pending tokens are rejected by AuthGuard/AdminGuard/SSH gateway. 5-failure lockout (5 min). Admin can `reset_2fa` for a member who lost their device.
 
 ### Frontend (implemented)
-- **Settings** now tabbed: Account (profile + change password), **Organization** (admin: rename, member table, add-member modal with generated temp password shown once, role/deactivate/reset-pw/delete) and **Email (SMTP)** (admin: config form + send-test-email).
+- **Settings** now tabbed: Account (profile + change password + 2FA enrollment with QR / recovery codes), **Organization** (admin: rename, member table, add-member modal with generated temp password shown once, role/deactivate/reset-pw/reset-2FA/delete) and **Email (SMTP)** (admin: config form + send-test-email).
 - Force-password-change screen replaces the dashboard until admin-created accounts set their own password.
 - Login page gained "Forgot password?"; new `/forgot-password` and `/reset-password` routes.
 
