@@ -6,10 +6,15 @@ import { apiUrl, API_URL } from '../api';
 const TerminalContext = createContext(null);
 
 const STORAGE_KEY = 'sharkshell_workspaces';
+const SCROLLBACK_PREFIX = 'sharkshell_scrollback_';
+const SCROLLBACK_MAX_BYTES = 256 * 1024; // per-session cap; keep the tail when over
+const SCROLLBACK_SAVE_INTERVAL = 15000;
+const SCROLLBACK_LINES = 1000;
 let wsCounter = 0;
 let sessionCounter = 0;
 
 function loadSavedWorkspaces() {
+    const validSessionIds = new Set();
     try {
         const saved = localStorage.getItem(STORAGE_KEY);
         if (saved) {
@@ -23,16 +28,56 @@ function loadSavedWorkspaces() {
                     if (!isNaN(sNum) && sNum > sessionCounter) sessionCounter = sNum;
                     // Mark saved sessions as 'saved' (not yet connected)
                     s.status = 'saved';
+                    validSessionIds.add(s.id);
                 });
             });
             // Ensure default workspace exists
             if (!data.find(w => w.id === 'ws-default')) {
                 data.unshift({ id: 'ws-default', name: 'Default', sessions: [] });
             }
+            pruneScrollback(validSessionIds);
             return data;
         }
     } catch { }
+    pruneScrollback(validSessionIds);
     return [{ id: 'ws-default', name: 'Default', sessions: [] }];
+}
+
+// Drop scrollback buffers whose session no longer exists
+function pruneScrollback(validSessionIds) {
+    try {
+        const orphans = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key?.startsWith(SCROLLBACK_PREFIX) && !validSessionIds.has(key.slice(SCROLLBACK_PREFIX.length))) {
+                orphans.push(key);
+            }
+        }
+        orphans.forEach(k => localStorage.removeItem(k));
+    } catch { }
+}
+
+function saveScrollback(sessionId, refs) {
+    try {
+        if (!refs?.serializeAddon) return;
+        let data = refs.serializeAddon.serialize({ scrollback: SCROLLBACK_LINES });
+        if (!data) return;
+        if (data.length > SCROLLBACK_MAX_BYTES) {
+            data = data.slice(-SCROLLBACK_MAX_BYTES);
+            // Re-align to a line boundary so we don't start mid-escape-sequence
+            const nl = data.indexOf('\n');
+            if (nl !== -1) data = data.slice(nl + 1);
+        }
+        localStorage.setItem(SCROLLBACK_PREFIX + sessionId, data);
+    } catch { }
+}
+
+function loadScrollback(sessionId) {
+    try { return localStorage.getItem(SCROLLBACK_PREFIX + sessionId) || null; } catch { return null; }
+}
+
+function clearScrollback(sessionId) {
+    try { localStorage.removeItem(SCROLLBACK_PREFIX + sessionId); } catch { }
 }
 
 function saveWorkspacesToStorage(workspaces) {
@@ -70,6 +115,16 @@ export function TerminalProvider({ children }) {
         saveWorkspacesToStorage(workspaces);
     }, [workspaces]);
 
+    // ─── Periodic scrollback snapshots + save on page unload ───
+    useEffect(() => {
+        const saveAll = () => {
+            for (const [id, refs] of Object.entries(sessionRefs.current)) saveScrollback(id, refs);
+        };
+        const interval = setInterval(saveAll, SCROLLBACK_SAVE_INTERVAL);
+        window.addEventListener('beforeunload', saveAll);
+        return () => { clearInterval(interval); window.removeEventListener('beforeunload', saveAll); };
+    }, []);
+
     // ─── Workspace CRUD ───
 
     function createWorkspace(name) {
@@ -88,7 +143,7 @@ export function TerminalProvider({ children }) {
         if (id === 'ws-default') return;
         const ws = workspaces.find(w => w.id === id);
         if (ws) {
-            ws.sessions.forEach(s => destroySessionRefs(s.id));
+            ws.sessions.forEach(s => { destroySessionRefs(s.id); clearScrollback(s.id); });
         }
         setWorkspaces(prev => {
             const remaining = prev.filter(w => w.id !== id);
@@ -154,9 +209,11 @@ export function TerminalProvider({ children }) {
         const { Terminal } = await import('@xterm/xterm');
         const { FitAddon } = await import('@xterm/addon-fit');
         const { WebLinksAddon } = await import('@xterm/addon-web-links');
+        const { SerializeAddon } = await import('@xterm/addon-serialize');
 
-        // If there's already a term, dispose it first
+        // If there's already a term, snapshot its scrollback then dispose it
         if (sessionRefs.current[sessionId]?.term) {
+            saveScrollback(sessionId, sessionRefs.current[sessionId]);
             sessionRefs.current[sessionId].term.dispose();
         }
 
@@ -169,6 +226,8 @@ export function TerminalProvider({ children }) {
         const fitAddon = new FitAddon();
         term.loadAddon(fitAddon);
         term.loadAddon(new WebLinksAddon());
+        const serializeAddon = new SerializeAddon();
+        term.loadAddon(serializeAddon);
 
         const container = document.getElementById(`term-${sessionId}`);
         if (container) {
@@ -177,12 +236,21 @@ export function TerminalProvider({ children }) {
             try { fitAddon.fit(); } catch { }
         }
 
+        // Repaint saved scrollback (visual restore — the shell underneath starts fresh)
+        let restoredHistory = false;
+        const savedScrollback = loadScrollback(sessionId);
+        if (savedScrollback) {
+            term.write(savedScrollback);
+            term.write('\r\n\x1b[2m── history restored ──\x1b[0m\r\n');
+            restoredHistory = true;
+        }
+
         term.writeln(`\x1b[33m⏳ Connecting to ${host.name}...\x1b[0m`);
 
         const resizeObserver = new ResizeObserver(() => { try { fitAddon.fit(); } catch { } });
         if (container) resizeObserver.observe(container);
 
-        sessionRefs.current[sessionId] = { socket: null, term, fitAddon, resizeObserver };
+        sessionRefs.current[sessionId] = { socket: null, term, fitAddon, serializeAddon, resizeObserver, restoredHistory };
 
         try {
             const { io } = await import('socket.io-client');
@@ -200,7 +268,7 @@ export function TerminalProvider({ children }) {
 
             socket.on('ssh:connected', () => {
                 updateSessionStatus(sessionId, 'connected');
-                term.clear();
+                if (!sessionRefs.current[sessionId]?.restoredHistory) term.clear();
                 term.focus();
             });
 
@@ -214,16 +282,19 @@ export function TerminalProvider({ children }) {
             socket.on('ssh:error', (data) => {
                 term.writeln(`\r\n\x1b[31m❌ Error: ${data.message}\x1b[0m\r\n`);
                 updateSessionStatus(sessionId, 'disconnected');
+                saveScrollback(sessionId, sessionRefs.current[sessionId]);
             });
 
             socket.on('ssh:closed', (data) => {
                 term.writeln(`\r\n\x1b[33m⚡ ${data.message || 'Connection closed'}\x1b[0m\r\n`);
                 updateSessionStatus(sessionId, 'disconnected');
+                saveScrollback(sessionId, sessionRefs.current[sessionId]);
             });
 
             socket.on('connect_error', (err) => {
                 term.writeln(`\r\n\x1b[31m❌ Socket error: ${err.message}\x1b[0m\r\n`);
                 updateSessionStatus(sessionId, 'disconnected');
+                saveScrollback(sessionId, sessionRefs.current[sessionId]);
             });
         } catch (err) {
             term.writeln(`\r\n\x1b[31m❌ Failed: ${err.message}\x1b[0m\r\n`);
@@ -240,6 +311,7 @@ export function TerminalProvider({ children }) {
 
     function closeSession(sessionId) {
         destroySessionRefs(sessionId);
+        clearScrollback(sessionId);
         setWorkspaces(prev => prev.map(w => ({
             ...w,
             sessions: w.sessions.filter(s => s.id !== sessionId),

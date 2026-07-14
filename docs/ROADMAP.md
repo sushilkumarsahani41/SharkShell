@@ -8,7 +8,7 @@ Planning document for the next block of work. Nothing here is built yet except w
 
 | Topic | Decision |
 |-------|----------|
-| **MCP placement** | MCP gets its own top-level nav section; **Settings** stays as a separate section for account/org. **(DONE — uncommitted)** |
+| **MCP placement** | MCP gets its own top-level nav section; **Settings** stays as a separate section for account/org. **(DONE — committed `f0acced`)** |
 | **Sharing model** | **Both**: (1) shared access to resources via explicit sharing, and (2) live collaborative terminals. Build the sharing/vault foundation first; live collaboration is a later, larger phase. |
 | **Resource visibility** | **Per-user private + explicit sharing.** A resource (host / key / group) is private to its creator until explicitly shared with specific users. Not org-wide-by-default. |
 | **User onboarding** | **Both, sequenced.** Ship **admin-created accounts** first (zero config, no email server). Add **email invite links** afterward (needs SMTP). |
@@ -25,28 +25,28 @@ Planning document for the next block of work. Nothing here is built yet except w
 
 ---
 
-## Phase 0 — MCP section split ✅ DONE (uncommitted)
+## Phase 0 — MCP section split ✅ DONE (committed `f0acced`)
 
 - New `MCP` nav item + `/dashboard/mcp` route; MCP UI moved to `McpPage.jsx`.
 - `SettingsPage.jsx` repurposed as a real account section (name, email, member-since) — the shell that org settings will extend.
 - No backend change. Builds clean.
 
-**Remaining:** commit + release when the next batch is ready (or standalone as v1.4.2).
+**Remaining:** ships with the v1.5.0 release alongside Phase 1.
 
 ---
 
-## Phase 1 — Terminal visual scrollback restore
+## Phase 1 — Terminal visual scrollback restore ✅ DONE
 
-**Independent of all org work. Highest daily-use value, lowest risk — recommended to ship first.**
+**Independent of all org work. Highest daily-use value, lowest risk — shipped first (v1.5.0).**
 
-- Add `@xterm/addon-serialize`; attach a `SerializeAddon` per session.
-- Persist the serialized buffer per session (localStorage with a per-session byte cap, keeping the tail; migrate to IndexedDB if size becomes a problem).
-- Save triggers: on disconnect events (`ssh:closed`/`ssh:error`/`connect_error`), a periodic timer while connected, and `beforeunload` (covers page reload).
-- On reconnect: repaint the saved buffer, draw a `── history restored ──` divider, then connect. **Do not** `term.clear()` on `ssh:connected` when history was restored.
-- Clear a session's saved buffer on explicit close / workspace delete.
+- `@xterm/addon-serialize` added; a `SerializeAddon` is attached per session.
+- Serialized buffer persisted per session in localStorage (`sharkshell_scrollback_<sessionId>`, last 1000 lines, 256 KB cap keeping the tail; orphaned buffers pruned on load; migrate to IndexedDB if size becomes a problem).
+- Save triggers: disconnect events (`ssh:closed`/`ssh:error`/`connect_error`), a 15 s periodic timer, `beforeunload` (covers page reload), and just before an in-page reconnect disposes the old term.
+- On reconnect: saved buffer repainted, `── history restored ──` divider drawn, then connect. `term.clear()` on `ssh:connected` is skipped when history was restored.
+- Saved buffer cleared on explicit close / workspace delete.
 
-**Scope:** frontend only (`TerminalContext.jsx`, small bits of `TerminalPage.jsx`). No API/DB change.
-**Effort:** small. **Verification:** connect → run commands → drop socket / reload → reconnect shows prior output above a fresh shell.
+**Scope:** frontend only (`TerminalContext.jsx`). No API/DB change.
+**Verification:** connect → run commands → drop socket / reload → reconnect shows prior output above a fresh shell.
 
 ---
 
