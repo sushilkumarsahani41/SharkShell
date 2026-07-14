@@ -31,13 +31,13 @@ Planning document for the next block of work. Nothing here is built yet except w
 - `SettingsPage.jsx` repurposed as a real account section (name, email, member-since) — the shell that org settings will extend.
 - No backend change. Builds clean.
 
-**Remaining:** ships with the v1.5.0 release alongside Phase 1.
+**Remaining:** shipped in the v2.0.0 release alongside Phases 1–2.
 
 ---
 
 ## Phase 1 — Terminal visual scrollback restore ✅ DONE
 
-**Independent of all org work. Highest daily-use value, lowest risk — shipped first (v1.5.0).**
+**Independent of all org work. Highest daily-use value, lowest risk — shipped first (v2.0.0).**
 
 - `@xterm/addon-serialize` added; a `SerializeAddon` is attached per session.
 - Serialized buffer persisted per session in localStorage (`sharkshell_scrollback_<sessionId>`, last 1000 lines, 256 KB cap keeping the tail; orphaned buffers pruned on load; migrate to IndexedDB if size becomes a problem).
