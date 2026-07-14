@@ -142,6 +142,77 @@ export class DatabaseService implements OnModuleDestroy {
       await this.query('CREATE INDEX IF NOT EXISTS idx_mcp_audit_user ON mcp_audit_log (user_id, created_at DESC)');
     } catch { }
 
+    // ─── Multi-user: organizations, roles, password resets, app settings ───
+
+    await this.query(`
+      CREATE TABLE IF NOT EXISTS organizations (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name VARCHAR(255) NOT NULL DEFAULT 'My Organization',
+        owner_user_id UUID,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    const userAlters = [
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS org_id UUID REFERENCES organizations(id) ON DELETE SET NULL",
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) NOT NULL DEFAULT 'member'",
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true",
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN NOT NULL DEFAULT false",
+    ];
+    for (const q of userAlters) {
+      try { await this.query(q); } catch { }
+    }
+
+    // Backfill: existing solo install becomes an org owned by the earliest user (idempotent)
+    try {
+      const orphans = await this.query('SELECT COUNT(*) FROM users WHERE org_id IS NULL');
+      if (parseInt(orphans.rows[0].count, 10) > 0) {
+        let orgId: string;
+        const existingOrg = await this.query('SELECT id FROM organizations ORDER BY created_at LIMIT 1');
+        if (existingOrg.rows.length > 0) {
+          orgId = existingOrg.rows[0].id;
+        } else {
+          const oldest = await this.query('SELECT id FROM users ORDER BY created_at LIMIT 1');
+          const ownerId = oldest.rows[0].id;
+          const org = await this.query(
+            "INSERT INTO organizations (name, owner_user_id) VALUES ('My Organization', $1) RETURNING id",
+            [ownerId],
+          );
+          orgId = org.rows[0].id;
+          await this.query("UPDATE users SET role = 'admin' WHERE id = $1", [ownerId]);
+        }
+        await this.query('UPDATE users SET org_id = $1 WHERE org_id IS NULL', [orgId]);
+      }
+      // The org owner is always an admin
+      await this.query(`
+        UPDATE users SET role = 'admin'
+        WHERE role <> 'admin' AND id IN (SELECT owner_user_id FROM organizations)
+      `);
+    } catch (err) {
+      console.error('Org backfill failed:', err);
+    }
+
+    await this.query(`
+      CREATE TABLE IF NOT EXISTS password_resets (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        token_hash VARCHAR(64) UNIQUE NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        used_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    await this.query(`
+      CREATE TABLE IF NOT EXISTS app_settings (
+        key VARCHAR(64) PRIMARY KEY,
+        value TEXT,
+        iv VARCHAR(64),
+        auth_tag VARCHAR(64),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
     // Fix foreign key constraint
     try {
       await this.query(`ALTER TABLE hosts DROP CONSTRAINT IF EXISTS hosts_ssh_key_id_fkey`);

@@ -4,6 +4,9 @@ import { TerminalProvider } from './context/TerminalContext';
 import DashboardLayout from './layouts/DashboardLayout';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
+import ForcePasswordPage from './pages/ForcePasswordPage';
 import DashboardPage from './pages/DashboardPage';
 import HostsPage from './pages/HostsPage';
 import KeystorePage from './pages/KeystorePage';
@@ -19,7 +22,10 @@ function PrivateRoute({ children }) {
             </div>
         );
     }
-    return user ? children : <Navigate to="/login" replace />;
+    if (!user) return <Navigate to="/login" replace />;
+    // Admin-created accounts must replace their temporary password first
+    if (user.must_change_password) return <ForcePasswordPage />;
+    return children;
 }
 
 function PublicRoute({ children }) {
@@ -34,6 +40,8 @@ export default function App() {
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
             <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} />
+            <Route path="/forgot-password" element={<PublicRoute><ForgotPasswordPage /></PublicRoute>} />
+            <Route path="/reset-password" element={<PublicRoute><ResetPasswordPage /></PublicRoute>} />
             <Route path="/dashboard" element={<PrivateRoute><TerminalProvider><DashboardLayout /></TerminalProvider></PrivateRoute>}>
                 <Route index element={<DashboardPage />} />
                 <Route path="hosts" element={<HostsPage />} />

@@ -719,6 +719,23 @@ select.input-field {
     font-size: 13px;
 }
 
+.auth-success {
+    padding: 10px 14px;
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.25);
+    border-radius: var(--radius-sm);
+    color: var(--success);
+    font-size: 13px;
+}
+
+.auth-switch {
+    text-align: center;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.auth-switch a { color: var(--text-accent); text-decoration: none; font-weight: 500; }
+
 .auth-footer {
     text-align: center;
     margin-top: 20px;
@@ -2451,6 +2468,55 @@ a.stat-card {
 .mcp-scope-heading:first-child { margin-top: 0; }
 
 .mcp-note { color: var(--warning) !important; font-size: 12px !important; }
+
+/* ─── Settings tabs / org / SMTP ─── */
+.settings-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.settings-tab {
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-secondary);
+    font-size: 14px;
+    font-weight: 500;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.settings-tab:hover { color: var(--text-primary); }
+.settings-tab-active { color: var(--text-accent); border-bottom-color: var(--accent-primary); }
+
+.settings-form { display: flex; flex-direction: column; gap: 14px; }
+.settings-form-row { display: flex; gap: 12px; }
+.settings-form-row .input-group { flex: 1; }
+
+.role-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 99px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: capitalize;
+    background: var(--bg-input);
+    border: 1px solid var(--border-light);
+    color: var(--text-secondary);
+}
+
+.role-badge-admin {
+    background: rgba(99, 102, 241, 0.12);
+    border-color: rgba(99, 102, 241, 0.35);
+    color: var(--text-accent);
+}
+
+.member-you { color: var(--text-tertiary); font-size: 11px; }
+.member-actions { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+.btn-danger-text { color: var(--danger) !important; }
 
 /* ─── Settings account section ─── */
 .settings-section { padding: 24px; max-width: 720px; }

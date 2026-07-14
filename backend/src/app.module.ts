@@ -8,17 +8,23 @@ import { KeysModule } from './keys/keys.module';
 import { SshModule } from './ssh/ssh.module';
 import { GroupsModule } from './groups/groups.module';
 import { McpModule } from './mcp/mcp.module';
+import { SettingsModule } from './settings/settings.module';
+import { MailModule } from './mail/mail.module';
+import { OrgModule } from './org/org.module';
 
 @Module({
     imports: [
         DatabaseModule,
         CryptoModule,
+        SettingsModule,
+        MailModule,
         AuthModule,
         HostsModule,
         KeysModule,
         SshModule,
         GroupsModule,
         McpModule,
+        OrgModule,
     ],
     controllers: [AppController]
 })

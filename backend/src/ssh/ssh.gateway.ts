@@ -45,6 +45,14 @@ export class SshGateway implements OnGatewayConnection, OnGatewayDisconnect {
             return;
         }
 
+        // Deactivated accounts cannot open SSH sessions even with a valid token
+        const active = await this.db.query('SELECT is_active FROM users WHERE id = $1', [decoded.id]);
+        if (active.rows.length === 0 || active.rows[0].is_active === false) {
+            socket.emit('ssh:error', { message: 'Account is deactivated' });
+            socket.disconnect();
+            return;
+        }
+
         (socket as any).userId = decoded.id;
         this.clients.set(socket.id, { sshClient: null, sshStream: null });
         console.log(`  🔌 Client connected: ${socket.id}`);

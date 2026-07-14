@@ -3,12 +3,14 @@ import {
     CanActivate,
     ExecutionContext,
     UnauthorizedException,
+    ForbiddenException,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { DatabaseService } from '../database/database.service';
 
+// Role is read from the DB (not the JWT) so role changes apply immediately
 @Injectable()
-export class AuthGuard implements CanActivate {
+export class AdminGuard implements CanActivate {
     constructor(
         private authService: AuthService,
         private db: DatabaseService,
@@ -20,12 +22,18 @@ export class AuthGuard implements CanActivate {
         if (!user) {
             throw new UnauthorizedException({ error: 'Unauthorized' });
         }
-        // Deactivated / deleted accounts are rejected even with a valid token
-        const result = await this.db.query('SELECT is_active FROM users WHERE id = $1', [user.id]);
-        if (result.rows.length === 0 || result.rows[0].is_active === false) {
+        const result = await this.db.query(
+            'SELECT role, org_id, is_active FROM users WHERE id = $1',
+            [user.id],
+        );
+        const row = result.rows[0];
+        if (!row || row.is_active === false) {
             throw new UnauthorizedException({ error: 'Account is deactivated' });
         }
-        request.user = user;
+        if (row.role !== 'admin') {
+            throw new ForbiddenException({ error: 'Admin access required' });
+        }
+        request.user = { ...user, role: row.role, org_id: row.org_id };
         return true;
     }
 }

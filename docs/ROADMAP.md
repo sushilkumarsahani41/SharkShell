@@ -50,26 +50,29 @@ Planning document for the next block of work. Nothing here is built yet except w
 
 ---
 
-## Phase 2 — Organization foundation & admin onboarding
+## Phase 2 — Organization foundation & admin onboarding ✅ DONE
 
-Turns SharkShell from single-user into a multi-user org with an admin.
+Turned SharkShell from single-user into a multi-user org with an admin. Shipped alongside SMTP settings + forgot-password (pulled forward from Phase 4 groundwork).
 
-### Data model
+### Data model (implemented)
 - `organizations` (`id`, `name`, `owner_user_id`, `created_at`).
-- `users`: add `org_id` (FK) and `role` (`admin` | `member`). Backfill: existing solo user becomes the admin/owner of a new org (migration must be in-place and idempotent, matching existing `ALTER … IF NOT EXISTS` pattern).
+- `users`: added `org_id` (FK), `role` (`admin` | `member`), `is_active`, `must_change_password`. Backfill: existing solo user becomes the admin/owner of a new org (in-place, idempotent — verified against a simulated v1.4.1 DB).
+- `password_resets` (hashed one-time tokens, 1 h expiry) and `app_settings` (AES-256-GCM encrypted JSON values; holds SMTP config).
 - JWT payload gains `org_id` and `role`.
 
-### Backend
-- `AuthGuard` unchanged for identity; add an `AdminGuard` (or role check) for admin-only routes.
-- Admin user management: `GET/POST/PATCH/DELETE /api/org/users` (create with temp password, set role, deactivate). Scope every query to the caller's `org_id`.
-- First-run flow updated: initial setup creates org + admin together.
+### Backend (implemented)
+- `AuthGuard` additionally rejects deactivated accounts (DB check); new `AdminGuard` reads role fresh from the DB. SSH gateway also blocks deactivated users.
+- Admin user management: `GET/POST/PATCH/DELETE /api/org/users` (create with temp password, set role, activate/deactivate, reset temp password) with self-modification and last-admin guard rails; `GET/PATCH /api/org` (name). All scoped to the caller's `org_id`.
+- First-run registration creates org + admin together.
+- SMTP: `GET/PUT /api/org/smtp` (password write-only), `POST /api/org/smtp/test`; `MailService` on nodemailer.
+- Forgot password: public `POST /api/auth/forgot-password` (503 when SMTP unconfigured; identical response whether or not the account exists) + `POST /api/auth/reset-password`; `POST /api/auth/change-password` for logged-in users.
 
-### Frontend
-- **Settings → Organization** tab (admin only): list members, create user (name, email, temp password, role), deactivate.
-- Force-password-change on first login for admin-created accounts.
+### Frontend (implemented)
+- **Settings** now tabbed: Account (profile + change password), **Organization** (admin: rename, member table, add-member modal with generated temp password shown once, role/deactivate/reset-pw/delete) and **Email (SMTP)** (admin: config form + send-test-email).
+- Force-password-change screen replaces the dashboard until admin-created accounts set their own password.
+- Login page gained "Forgot password?"; new `/forgot-password` and `/reset-password` routes.
 
-**Effort:** medium. **Risk:** touches auth and the setup/lockdown flow — needs the migration tested against an existing single-user DB (same discipline as the MCP v1.4.1 migration).
-**Open question:** does an admin get an override to view/manage members' private resources, or is admin purely for user/billing management? *(Default assumption: admin manages users, not members' private resources, unless shared.)*
+**Resolved open question:** admin manages users only — no override into members' private resources (sharing comes in Phase 3).
 
 ---
 
@@ -97,9 +100,9 @@ Implements "per-user private + explicit sharing" on top of Phase 2.
 
 - `invites` (`id`, `org_id`, `email`, `token_hash`, `role`, `expires_at`, `accepted_at`).
 - `POST /api/org/invites` (admin) → email a signed link; public `POST /api/org/invites/:token/accept` sets password and joins the org.
-- Requires SMTP / email-provider config (new env vars); degrade gracefully to admin-created accounts when unconfigured.
+- **SMTP transport already exists** (Phase 2 shipped admin-configurable SMTP settings + `MailService`); degrade gracefully to admin-created accounts when unconfigured.
 
-**Effort:** small-medium (gated on choosing an email transport).
+**Effort:** small (transport + settings UI already built).
 
 ---
 

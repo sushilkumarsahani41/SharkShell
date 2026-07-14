@@ -91,8 +91,25 @@ export function AuthProvider({ children }) {
         setUser(null);
     }
 
+    // Re-fetch the current user (role / must_change_password may have changed)
+    async function refreshUser() {
+        if (token) await fetchUser(token);
+    }
+
+    async function changePassword(currentPassword, newPassword) {
+        const res = await fetch(apiUrl('/api/auth/change-password'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ currentPassword, newPassword }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        await refreshUser();
+        return data;
+    }
+
     return (
-        <AuthContext.Provider value={{ user, token, loading, setupStatus, loadingSetup, login, register, logout }}>
+        <AuthContext.Provider value={{ user, token, loading, setupStatus, loadingSetup, login, register, logout, refreshUser, changePassword }}>
             {children}
         </AuthContext.Provider>
     );

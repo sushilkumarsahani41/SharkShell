@@ -1,26 +1,27 @@
 import { useState } from 'react';
-import { useNavigate, Navigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-export default function LoginPage() {
-    const [email, setEmail] = useState('');
+// Shown instead of the dashboard when an admin-created account signs in
+// with a temporary password (must_change_password = true).
+export default function ForcePasswordPage() {
+    const { user, changePassword, logout } = useAuth();
+    const [currentPassword, setCurrentPassword] = useState('');
     const [password, setPassword] = useState('');
+    const [confirm, setConfirm] = useState('');
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const { login, setupStatus } = useAuth();
-    const navigate = useNavigate();
-
-    if (setupStatus?.requireSetup) {
-        return <Navigate to="/register" replace />;
-    }
 
     async function handleSubmit(e) {
         e.preventDefault();
         setError('');
+        if (password !== confirm) {
+            setError('Passwords do not match');
+            return;
+        }
         setIsLoading(true);
         try {
-            await login(email, password);
-            navigate('/dashboard');
+            await changePassword(currentPassword, password);
+            // refreshUser inside changePassword clears must_change_password → app re-renders into the dashboard
         } catch (err) {
             setError(err.message);
         } finally {
@@ -51,22 +52,26 @@ export default function LoginPage() {
                         </svg>
                         <h1>SharkShell</h1>
                     </div>
-                    <p className="auth-subtitle">Sign in to your account</p>
+                    <p className="auth-subtitle">Welcome{user?.name ? `, ${user.name}` : ''} — set a new password to continue</p>
 
                     <form onSubmit={handleSubmit} className="auth-form">
                         {error && <div className="auth-error">{error}</div>}
                         <div className="input-group">
-                            <label>Email</label>
-                            <input type="email" className="input-field" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                            <label>Temporary password</label>
+                            <input type="password" className="input-field" placeholder="The password you signed in with" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} required autoFocus />
                         </div>
                         <div className="input-group">
-                            <label>Password</label>
-                            <input type="password" className="input-field" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                            <label>New password</label>
+                            <input type="password" className="input-field" placeholder="At least 8 characters" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} />
+                        </div>
+                        <div className="input-group">
+                            <label>Confirm new password</label>
+                            <input type="password" className="input-field" placeholder="••••••••" value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
                         </div>
                         <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%' }} disabled={isLoading}>
-                            {isLoading ? <span className="spinner" /> : 'Sign In'}
+                            {isLoading ? <span className="spinner" /> : 'Set password & continue'}
                         </button>
-                        <p className="auth-switch"><Link to="/forgot-password">Forgot password?</Link></p>
+                        <p className="auth-switch"><a href="#" onClick={(e) => { e.preventDefault(); logout(); }}>Sign out</a></p>
                     </form>
                 </div>
             </div>
