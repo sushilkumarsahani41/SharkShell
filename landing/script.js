@@ -1,105 +1,147 @@
 /* ═══════════════════════════════════════════
-   SharkShell Landing Page — Interactions
+   SharkShell Landing — Interactions
+   (analytics events are dispatched through
+    window.ssTrack, defined in analytics.js)
    ═══════════════════════════════════════════ */
 
-// Scroll-triggered animations
-const observer = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-        if (entry.isIntersecting) {
-            entry.target.classList.add('visible');
-        }
-    });
-}, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
+const track = (name, params) => window.ssTrack && window.ssTrack(name, params);
 
-document.querySelectorAll('.animate-in').forEach(el => observer.observe(el));
+/* ── Scroll reveal (progressive enhancement: content is visible
+      without JS; the reveal class is added only when JS runs) ── */
+const revealTargets = document.querySelectorAll(
+    '.bento-cell, .security-item, .qs-step, .arch-layout, .screenshot-viewer'
+);
+if ('IntersectionObserver' in window && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    document.body.classList.add('reveal-ready');
+    const revealObserver = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('revealed');
+                revealObserver.unobserve(entry.target);
+            }
+        });
+    }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+    revealTargets.forEach((el) => revealObserver.observe(el));
+}
 
-// Navbar scroll effect
+/* ── Navbar scroll state ── */
 const navbar = document.getElementById('navbar');
+let navTick = false;
 window.addEventListener('scroll', () => {
-    navbar.classList.toggle('scrolled', window.scrollY > 50);
-});
+    if (navTick) return;
+    navTick = true;
+    requestAnimationFrame(() => {
+        navbar.classList.toggle('scrolled', window.scrollY > 40);
+        navTick = false;
+    });
+}, { passive: true });
 
-// Mobile nav toggle
+/* ── Mobile nav ── */
 const navToggle = document.getElementById('navToggle');
 const navLinks = document.getElementById('navLinks');
 navToggle.addEventListener('click', () => {
-    navLinks.classList.toggle('open');
+    const open = navLinks.classList.toggle('open');
+    navToggle.setAttribute('aria-expanded', String(open));
+    if (open) track('menu_open', {});
+});
+navLinks.querySelectorAll('a').forEach((link) => {
+    link.addEventListener('click', () => {
+        navLinks.classList.remove('open');
+        navToggle.setAttribute('aria-expanded', 'false');
+    });
 });
 
-// Close mobile nav on link click
-navLinks.querySelectorAll('a').forEach(link => {
-    link.addEventListener('click', () => navLinks.classList.remove('open'));
-});
-
-// Screenshot tab switching
+/* ── Screenshot tabs ── */
 const captions = {
-    dashboard: 'Dashboard — Overview of your SSH keys, saved hosts, and security status at a glance',
-    terminal: 'Terminal — Multi-tab SSH sessions with live connections to your servers',
-    hosts: 'Hosts — Manage your server connections with one-click connect',
-    keystore: 'Keystore — Generate, upload, and manage your SSH keys securely',
-    login: 'Login — Secure authentication with a modern glassmorphic design'
+    dashboard: 'Dashboard — SSH keys, saved hosts, and security status at a glance',
+    terminal: 'Terminal — multi-tab SSH sessions with restored scrollback',
+    hosts: 'Hosts — one-click connect, color-coded groups',
+    keystore: 'Keystore — generate, upload, and manage keys securely',
+    login: 'Login — secure authentication with TOTP 2FA'
 };
-
-document.querySelectorAll('.tab-btn').forEach(btn => {
+const frameUrls = {
+    dashboard: 'localhost:8080/dashboard',
+    terminal: 'localhost:8080/dashboard/terminal',
+    hosts: 'localhost:8080/dashboard/hosts',
+    keystore: 'localhost:8080/dashboard/keys',
+    login: 'localhost:8080/login'
+};
+document.querySelectorAll('.tab-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
         const tab = btn.dataset.tab;
-
-        // Update active tab button
-        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-
-        // Switch image
-        document.querySelectorAll('.tab-image').forEach(img => img.classList.remove('active'));
-        const targetImg = document.querySelector(`.tab-image[data-tab="${tab}"]`);
-        if (targetImg) targetImg.classList.add('active');
-
-        // Update caption
+        document.querySelectorAll('.tab-btn').forEach((b) => {
+            b.classList.toggle('active', b === btn);
+            b.setAttribute('aria-selected', String(b === btn));
+        });
+        document.querySelectorAll('.tab-image').forEach((img) => {
+            img.classList.toggle('active', img.dataset.tab === tab);
+        });
         const captionText = document.getElementById('captionText');
-        if (captionText && captions[tab]) {
-            captionText.textContent = captions[tab];
-        }
-
-        // Update frame URL
-        const frameUrl = document.querySelector('.frame-url');
-        if (frameUrl) {
-            const urls = {
-                dashboard: 'localhost:8080/dashboard',
-                terminal: 'localhost:8080/dashboard/terminal',
-                hosts: 'localhost:8080/dashboard/hosts',
-                keystore: 'localhost:8080/dashboard/keys',
-                login: 'localhost:8080/login'
-            };
-            frameUrl.textContent = urls[tab] || 'localhost:8080';
-        }
+        if (captionText && captions[tab]) captionText.textContent = captions[tab];
+        const frameUrl = document.getElementById('frameUrl');
+        if (frameUrl) frameUrl.textContent = frameUrls[tab] || 'localhost:8080';
+        track('screenshot_tab_view', { tab_name: tab });
     });
 });
 
-// Copy to clipboard
-function copyCode(button, elementId) {
-    const code = document.getElementById(elementId);
-    if (!code) return;
-    const text = code.textContent;
-    navigator.clipboard.writeText(text).then(() => {
-        button.classList.add('copied');
-        const svg = button.querySelector('svg');
-        const originalHTML = button.innerHTML;
-        button.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>';
-        setTimeout(() => {
-            button.innerHTML = originalHTML;
-            button.classList.remove('copied');
-        }, 2000);
+/* ── Copy-to-clipboard (delegated; data-copy-target / data-copy-id) ── */
+document.querySelectorAll('.code-copy').forEach((button) => {
+    button.addEventListener('click', () => {
+        const code = document.getElementById(button.dataset.copyTarget);
+        if (!code) return;
+        navigator.clipboard.writeText(code.textContent.replace(/^\$ /gm, '')).then(() => {
+            button.classList.add('copied');
+            const originalHTML = button.innerHTML;
+            button.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>';
+            setTimeout(() => {
+                button.innerHTML = originalHTML;
+                button.classList.remove('copied');
+            }, 2000);
+            track('copy_command', { command_id: button.dataset.copyId || button.dataset.copyTarget });
+        });
     });
-}
+});
 
-// Smooth scroll for anchor links
-document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+/* ── Smooth scroll for in-page anchors ── */
+document.querySelectorAll('a[href^="#"]').forEach((anchor) => {
     anchor.addEventListener('click', (e) => {
-        e.preventDefault();
         const target = document.querySelector(anchor.getAttribute('href'));
-        if (target) {
-            const offset = 80;
-            const top = target.getBoundingClientRect().top + window.scrollY - offset;
-            window.scrollTo({ top, behavior: 'smooth' });
-        }
+        if (!target) return;
+        e.preventDefault();
+        const top = target.getBoundingClientRect().top + window.scrollY - 76;
+        window.scrollTo({ top, behavior: 'smooth' });
     });
+});
+
+/* ── CTA + outbound + nav click tracking (data-track / data-cta) ── */
+document.addEventListener('click', (e) => {
+    const el = e.target.closest('[data-track], a[href^="http"], a[href^="mailto:"]');
+    if (!el) return;
+
+    const params = {
+        link_text: (el.textContent || '').trim().slice(0, 60),
+        link_url: el.href || '',
+        track_id: el.dataset.track || ''
+    };
+
+    if (el.dataset.cta) {
+        // conversion-grade events for Google Ads
+        track('cta_click', { ...params, cta_name: el.dataset.cta });
+        if (el.dataset.cta === 'get_started') track('get_started', params);
+    } else if (el.dataset.track) {
+        track('ui_click', params);
+    }
+
+    if (el.href && /^https?:/.test(el.href)) {
+        try {
+            const url = new URL(el.href);
+            if (url.hostname !== location.hostname) {
+                track('outbound_click', {
+                    link_domain: url.hostname,
+                    link_url: el.href,
+                    track_id: el.dataset.track || ''
+                });
+            }
+        } catch { /* ignore malformed URLs */ }
+    }
 });
