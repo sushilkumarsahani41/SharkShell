@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { spawn } from 'child_process';
+import { spawn, spawnSync } from 'child_process';
 import * as fs from 'fs';
 import * as fsp from 'fs/promises';
 import * as os from 'os';
@@ -156,6 +156,119 @@ export class BackupService implements OnModuleInit {
         const row = result.rows[0];
         if (!row || !row.local_path || !fs.existsSync(row.local_path)) return null;
         return { path: row.local_path, fileName: row.file_name };
+    }
+
+    // ─── Restore ───
+    // Local backups only — a remote destination's file isn't on this filesystem to read back.
+    // Overwrites the live database and the encryption_key secret, then exits the process so
+    // Docker's restart policy brings the app back up with the restored key loaded from disk.
+    // jwt_secret and db_password are deliberately NOT restored: jwt_secret only affects live
+    // session validity (not data), and db_password must keep matching this Postgres role's
+    // actual live password, which restoring an old backup's copy would break.
+
+    async restoreLocalBackup(orgId: string, runId: string) {
+        const result = await this.db.query(
+            `SELECT r.local_path, r.file_name FROM backup_runs r
+             JOIN backup_destinations d ON d.id = r.destination_id
+             WHERE r.id = $1 AND d.org_id = $2 AND d.type = 'local' AND r.status = 'success'`,
+            [runId, orgId],
+        );
+        const row = result.rows[0];
+        if (!row || !row.local_path || !fs.existsSync(row.local_path)) {
+            throw new Error('Backup file not found — only local backups can be restored here');
+        }
+
+        const stagingDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'sharkshell-restore-'));
+        try {
+            const archivePath = path.join(stagingDir, 'archive.tar.gz');
+            await this.decryptFile(row.local_path, archivePath);
+            await this.untar(archivePath, stagingDir);
+
+            const dumpPath = path.join(stagingDir, 'database.sql');
+            if (!fs.existsSync(dumpPath)) {
+                throw new Error('Backup archive is missing database.sql — it may be corrupt');
+            }
+
+            const encKeyPath = path.join(stagingDir, 'secrets', 'encryption_key');
+            const newEncryptionKey = fs.existsSync(encKeyPath)
+                ? (await fsp.readFile(encKeyPath, 'utf8')).trim()
+                : null;
+
+            await this.pgRestore(dumpPath);
+
+            if (newEncryptionKey) {
+                await fsp.writeFile(path.join(SECRETS_DIR, 'encryption_key'), newEncryptionKey, { mode: 0o600 });
+            }
+
+            this.logger.warn(`Restore completed from run ${runId} — restarting process to load restored state.`);
+            setTimeout(() => process.exit(0), 1000);
+            return { message: 'Restore complete. The service is restarting to apply the restored data.' };
+        } finally {
+            await fsp.rm(stagingDir, { recursive: true, force: true });
+        }
+    }
+
+    private decryptFile(inPath: string, outPath: string): Promise<void> {
+        const key = process.env.ENCRYPTION_KEY;
+        if (!key || key.length !== 64) return Promise.reject(new Error('ENCRYPTION_KEY missing/invalid'));
+        return new Promise((resolve, reject) => {
+            const proc = spawn('openssl', [
+                'enc', '-d', '-aes-256-cbc', '-pbkdf2',
+                '-pass', 'env:SHARKSHELL_BACKUP_KEY',
+                '-in', inPath, '-out', outPath,
+            ], { env: { ...process.env, SHARKSHELL_BACKUP_KEY: key } });
+            let stderr = '';
+            proc.stderr.on('data', (d) => (stderr += d.toString()));
+            proc.on('error', (err) => reject(new Error(`Failed to spawn openssl: ${err.message}`)));
+            proc.on('close', (code) => {
+                if (code === 0) resolve();
+                else reject(new Error(`Decryption failed (code ${code}) — wrong ENCRYPTION_KEY for this backup? ${stderr.trim().slice(-500)}`));
+            });
+        });
+    }
+
+    private untar(archivePath: string, destDir: string): Promise<void> {
+        return new Promise((resolve, reject) => {
+            const proc = spawn('tar', ['-xzf', archivePath, '-C', destDir]);
+            let stderr = '';
+            proc.stderr.on('data', (d) => (stderr += d.toString()));
+            proc.on('error', (err) => reject(new Error(`Failed to spawn tar: ${err.message}`)));
+            proc.on('close', (code) => {
+                if (code === 0) resolve();
+                else reject(new Error(`tar extraction failed (code ${code}): ${stderr.trim().slice(-500)}`));
+            });
+        });
+    }
+
+    private pgRestore(dumpPath: string): Promise<void> {
+        const pgEnv = {
+            ...process.env,
+            PGPASSWORD: process.env.DB_PASSWORD || '',
+        };
+        const pgArgs = [
+            '-h', process.env.DB_HOST || 'localhost',
+            '-p', process.env.DB_PORT || '5432',
+            '-U', process.env.DB_USER || 'sharkshell',
+            '-d', process.env.DB_NAME || 'sharkshell',
+        ];
+
+        const dropResult = spawnSync('psql', [...pgArgs, '-v', 'ON_ERROR_STOP=1', '-c', 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;'], { env: pgEnv });
+        if (dropResult.status !== 0) {
+            throw new Error(`Failed to reset database schema before restore: ${dropResult.stderr?.toString().slice(-1000)}`);
+        }
+
+        return new Promise((resolve, reject) => {
+            const proc = spawn('psql', [...pgArgs, '-v', 'ON_ERROR_STOP=1'], { env: pgEnv });
+            const dumpStream = fs.createReadStream(dumpPath);
+            dumpStream.pipe(proc.stdin);
+            let stderr = '';
+            proc.stderr.on('data', (d) => (stderr += d.toString()));
+            proc.on('error', (err) => reject(new Error(`Failed to spawn psql: ${err.message}`)));
+            proc.on('close', (code) => {
+                if (code === 0) resolve();
+                else reject(new Error(`Database restore failed (code ${code}): ${stderr.trim().slice(-2000)}`));
+            });
+        });
     }
 
     // ─── Backup execution ───

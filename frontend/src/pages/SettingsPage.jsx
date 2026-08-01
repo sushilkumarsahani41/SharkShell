@@ -636,6 +636,9 @@ function BackupTab() {
     const [editDest, setEditDest] = useState(null);
     const [form, setForm] = useState(emptyDestForm);
     const [confirmDelete, setConfirmDelete] = useState(null);
+    const [confirmRestore, setConfirmRestore] = useState(null); // run object
+    const [restorePhrase, setRestorePhrase] = useState('');
+    const [restoring, setRestoring] = useState(false); // true while waiting for the service to restart
 
     useEffect(() => { load(); }, []);
 
@@ -697,6 +700,36 @@ function BackupTab() {
 
     async function runNow(d) { await api(`/api/backup/destinations/${d.id}/run`, { method: 'POST' }, `Backup started for "${d.name}"`); }
     async function deleteDest(d) { await api(`/api/backup/destinations/${d.id}`, { method: 'DELETE' }, `"${d.name}" deleted`); setConfirmDelete(null); }
+
+    async function doRestore(run) {
+        setBusy(true);
+        setMsg(null);
+        try {
+            const res = await fetch(apiUrl(`/api/backup/runs/${run.id}/restore`), {
+                method: 'POST', headers, body: JSON.stringify({ confirmationPhrase: 'RESTORE' }),
+            });
+            const data = await res.json().catch(() => null);
+            if (!res.ok) throw new Error(data?.error || 'Restore failed');
+            setConfirmRestore(null);
+            setRestorePhrase('');
+            setRestoring(true);
+            waitForReconnect();
+        } catch (err) {
+            setMsg({ type: 'error', text: err.message });
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    function waitForReconnect() {
+        const check = () => {
+            fetch(apiUrl('/api/health')).then(res => {
+                if (res.ok) window.location.reload();
+                else setTimeout(check, 1500);
+            }).catch(() => setTimeout(check, 1500));
+        };
+        setTimeout(check, 1500); // give the process a moment to actually exit before polling
+    }
 
     function scheduleSummary(d) {
         if (!d.schedule_enabled) return 'Manual only';
@@ -786,17 +819,20 @@ function BackupTab() {
                                         </td>
                                         <td>
                                             {r.status === 'success' && r.destination_type === 'local' && (
-                                                <a className="btn btn-ghost btn-sm" href={apiUrl(`/api/backup/runs/${r.id}/download`)} onClick={(e) => {
-                                                    e.preventDefault();
-                                                    fetch(apiUrl(`/api/backup/runs/${r.id}/download`), { headers })
-                                                        .then(res => res.blob())
-                                                        .then(blob => {
-                                                            const url = URL.createObjectURL(blob);
-                                                            const a = document.createElement('a');
-                                                            a.href = url; a.download = r.file_name || 'backup.tar.gz.enc'; a.click();
-                                                            URL.revokeObjectURL(url);
-                                                        });
-                                                }}>Download</a>
+                                                <div style={{ display: 'flex', gap: 6 }}>
+                                                    <a className="btn btn-ghost btn-sm" href={apiUrl(`/api/backup/runs/${r.id}/download`)} onClick={(e) => {
+                                                        e.preventDefault();
+                                                        fetch(apiUrl(`/api/backup/runs/${r.id}/download`), { headers })
+                                                            .then(res => res.blob())
+                                                            .then(blob => {
+                                                                const url = URL.createObjectURL(blob);
+                                                                const a = document.createElement('a');
+                                                                a.href = url; a.download = r.file_name || 'backup.tar.gz.enc'; a.click();
+                                                                URL.revokeObjectURL(url);
+                                                            });
+                                                    }}>Download</a>
+                                                    <button className="btn btn-ghost btn-sm btn-danger-text" onClick={() => { setConfirmRestore(r); setRestorePhrase(''); }}>Restore</button>
+                                                </div>
                                             )}
                                         </td>
                                     </tr>
@@ -952,6 +988,37 @@ function BackupTab() {
                             <button className="btn btn-ghost" onClick={() => setConfirmDelete(null)}>Cancel</button>
                             <button className="btn btn-danger" onClick={() => deleteDest(confirmDelete)} disabled={busy}>{busy ? <span className="spinner" /> : 'Delete'}</button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Restore confirm */}
+            {confirmRestore && (
+                <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setConfirmRestore(null)}>
+                    <div className="modal" style={{ maxWidth: 440, textAlign: 'center' }}>
+                        <div style={{ fontSize: 40, marginBottom: 12 }}>⚠️</div>
+                        <h2 style={{ marginBottom: 8 }}>Restore this backup?</h2>
+                        <p style={{ color: 'var(--text-secondary)', fontSize: 14, marginBottom: 8 }}>
+                            This <strong>overwrites the entire live database</strong> with the state from {new Date(confirmRestore.started_at).toLocaleString()}.
+                            Anything created or changed since then — hosts, keys, users, MCP keys, everything — is permanently lost. The service restarts automatically afterward.
+                        </p>
+                        <p style={{ color: 'var(--text-secondary)', fontSize: 14, marginBottom: 16 }}>This cannot be undone. Type <strong>RESTORE</strong> to confirm.</p>
+                        <input className="input-field" style={{ textAlign: 'center', marginBottom: 20 }} value={restorePhrase} onChange={e => setRestorePhrase(e.target.value)} placeholder="RESTORE" autoFocus />
+                        <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+                            <button className="btn btn-ghost" onClick={() => setConfirmRestore(null)}>Cancel</button>
+                            <button className="btn btn-danger" disabled={busy || restorePhrase !== 'RESTORE'} onClick={() => doRestore(confirmRestore)}>{busy ? <span className="spinner" /> : 'Restore & restart'}</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Restoring overlay */}
+            {restoring && (
+                <div className="modal-overlay">
+                    <div className="modal" style={{ maxWidth: 380, textAlign: 'center' }}>
+                        <div className="spinner spinner-lg" style={{ margin: '0 auto 16px' }} />
+                        <h2 style={{ marginBottom: 8 }}>Restoring &amp; restarting…</h2>
+                        <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>The service is applying the backup and will be back in a few seconds. This page will reload automatically.</p>
                     </div>
                 </div>
             )}

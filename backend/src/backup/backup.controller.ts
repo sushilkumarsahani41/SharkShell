@@ -85,4 +85,17 @@ export class BackupController {
         }
         return res.download(file.path, file.fileName);
     }
+
+    @Post('runs/:id/restore')
+    async restoreRun(@Req() req: any, @Param('id') id: string, @Body() body: { confirmationPhrase?: string }, @Res() res: Response) {
+        if (body.confirmationPhrase !== 'RESTORE') {
+            return res.status(400).json({ error: 'Restore not confirmed — this overwrites the live database and cannot be undone.' });
+        }
+        try {
+            const result = await this.backupService.restoreLocalBackup(req.user.org_id, id);
+            return res.json(result);
+        } catch (err: any) {
+            return res.status(400).json({ error: err.message });
+        }
+    }
 }

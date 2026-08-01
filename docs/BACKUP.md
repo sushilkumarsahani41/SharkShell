@@ -55,13 +55,31 @@ are deleted automatically, including from remote storage.
 
 ## 4. Downloading & restoring
 
-Backups sent to **Local disk** can be downloaded from the backup history table. Remote
-destinations (S3, GCS, SFTP, FTP, WebDAV) are not downloadable through the UI — pull the file
-from the destination directly (e.g. the S3 console, an SFTP client).
+Backups sent to **Local disk** can be downloaded, or restored in-app, from the backup history
+table. Remote destinations (S3, GCS, SFTP, FTP, WebDAV) support neither — pull the file from
+the destination directly (e.g. the S3 console, an SFTP client), then use the manual procedure
+below.
 
-There is intentionally **no one-click "restore" button** — restoring overwrites the live
-database and secrets, and that's not something to trigger by accident from a settings page.
-Restore manually:
+### In-app restore (Local disk backups, same instance)
+
+Click **Restore** next to a successful local backup and type `RESTORE` to confirm — this is
+gated behind a typed confirmation because the action is irreversible. It:
+
+1. Decrypts the archive with the instance's current `ENCRYPTION_KEY`
+2. Drops and reloads the database from the backup's `database.sql`
+3. Restores `encryption_key` from the backup (so data encrypted under an older key stays
+   readable) — `jwt_secret` and `db_password` are deliberately left untouched, since changing
+   those would invalidate the live session doing the restore and break the live database
+   connection's own credentials, respectively
+4. Restarts the SharkShell process so the restored key is loaded from disk
+
+The page shows a "Restoring…" state and reloads automatically once the service is back — this
+usually takes a few seconds.
+
+This only works for a backup made **by this same instance** (its `ENCRYPTION_KEY` must still
+be able to decrypt the archive) and only for a **Local disk** destination, since the file has
+to already be on this filesystem. For anything else — a different server, disaster recovery,
+or a remote destination — use the manual procedure:
 
 ```bash
 # 1. Decrypt (needs the ENCRYPTION_KEY that was active when this backup was made)
