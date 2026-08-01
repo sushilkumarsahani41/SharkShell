@@ -78,8 +78,19 @@ usually takes a few seconds.
 
 This only works for a backup made **by this same instance** (its `ENCRYPTION_KEY` must still
 be able to decrypt the archive) and only for a **Local disk** destination, since the file has
-to already be on this filesystem. For anything else — a different server, disaster recovery,
-or a remote destination — use the manual procedure:
+to already be on this filesystem.
+
+### Restore from an uploaded file (moving a backup between instances)
+
+Under **Restore from an uploaded file**, upload a `.tar.gz.enc` you downloaded from another
+SharkShell instance's backup history and type `RESTORE` to confirm. It runs the exact same
+decrypt/reload pipeline as above, just against an uploaded file instead of a local run. This
+still only works if the **target** instance's current `ENCRYPTION_KEY` matches the one the
+source instance used to make that backup — moving a backup to an instance with a different
+key fails cleanly at the decrypt step with an explicit error.
+
+For a different `ENCRYPTION_KEY` (e.g. true disaster recovery onto a brand new install), use
+the manual procedure, which restores the key itself first:
 
 ```bash
 # 1. Decrypt (needs the ENCRYPTION_KEY that was active when this backup was made)
