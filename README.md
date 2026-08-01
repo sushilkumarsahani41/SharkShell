@@ -34,6 +34,7 @@ SharkShell is a modern, self-hosted web-based SSH terminal and keystore manager.
 | 💾 **Session Persistence** | Sessions survive page refresh — click to reconnect |
 | 🎨 **Modern UI** | Glassmorphic design with dark mode and micro-animations |
 | 🤖 **MCP Access** | Built-in MCP server so AI assistants can manage your hosts and run commands |
+| 💽 **Scheduled Backups** | Encrypted backups to local disk, S3, Google Cloud Storage, SFTP, FTP, or WebDAV |
 
 ## 🐳 Quick Start
 
@@ -155,6 +156,13 @@ Available tools:
 📖 **Full guide, tool schemas, and security model: [docs/MCP.md](docs/MCP.md)**
 
 > ⚠️ `run_command` is a real shell — a scoped `execute` key can read that host's own secrets via commands. Scope keys tightly and serve SharkShell over HTTPS.
+
+## 💽 Backups
+
+Configure encrypted, scheduled backups in **Settings → Backup** (admin only) — local disk, S3
+/ any S3-compatible store, Google Cloud Storage, SFTP, FTP, or WebDAV.
+
+📖 **Setup per destination type & manual restore procedure: [docs/BACKUP.md](docs/BACKUP.md)**
 
 ## 🏗️ Architecture
 

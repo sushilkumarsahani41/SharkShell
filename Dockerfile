@@ -23,8 +23,9 @@ RUN npm run build
 FROM node:20-alpine AS production
 WORKDIR /app
 
-# Install Nginx, PostgreSQL (for embedded DB fallback), openssh-client (for ssh-keygen), and utilities
-RUN apk add --no-cache openssl nginx postgresql postgresql-contrib su-exec bash openssh-client
+# Install Nginx, PostgreSQL (for embedded DB fallback + pg_dump), openssh-client (for ssh-keygen),
+# rclone (backup upload to S3/GCS/SFTP/FTP/WebDAV), and utilities
+RUN apk add --no-cache openssl nginx postgresql postgresql-contrib su-exec bash openssh-client rclone
 
 COPY backend/package*.json ./
 RUN npm ci --omit=dev --ignore-scripts
@@ -44,11 +45,12 @@ RUN addgroup -g 1001 sharkshell && \
     adduser -u 1001 -G sharkshell -s /bin/sh -D sharkshell && \
     mkdir -p /app/secrets && \
     mkdir -p /app/pgdata && \
+    mkdir -p /app/backups && \
     mkdir -p /run/nginx && \
     chown -R sharkshell:sharkshell /app
 
 # Declare persistent volumes so data survives container restarts/recreation
-VOLUME ["/app/pgdata", "/app/secrets"]
+VOLUME ["/app/pgdata", "/app/secrets", "/app/backups"]
 
 # Copy the custom entrypoint script
 COPY docker-entrypoint.sh /usr/local/bin/

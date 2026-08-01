@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { DatabaseModule } from './database/database.module';
 import { CryptoModule } from './crypto/crypto.module';
@@ -11,9 +12,11 @@ import { McpModule } from './mcp/mcp.module';
 import { SettingsModule } from './settings/settings.module';
 import { MailModule } from './mail/mail.module';
 import { OrgModule } from './org/org.module';
+import { BackupModule } from './backup/backup.module';
 
 @Module({
     imports: [
+        ScheduleModule.forRoot(),
         DatabaseModule,
         CryptoModule,
         SettingsModule,
@@ -25,6 +28,7 @@ import { OrgModule } from './org/org.module';
         GroupsModule,
         McpModule,
         OrgModule,
+        BackupModule,
     ],
     controllers: [AppController]
 })

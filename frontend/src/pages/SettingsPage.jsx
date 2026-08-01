@@ -590,6 +590,375 @@ function EmailTab() {
     );
 }
 
+// ─── Backup tab (admin) ───
+
+const BACKUP_TYPES = [
+    { id: 'local', label: 'Local disk' },
+    { id: 's3', label: 'Amazon S3 / S3-compatible' },
+    { id: 'gcs', label: 'Google Cloud Storage' },
+    { id: 'sftp', label: 'SFTP' },
+    { id: 'ftp', label: 'FTP' },
+    { id: 'webdav', label: 'WebDAV' },
+];
+
+const CRON_PRESETS = [
+    { label: 'Daily at 2am', value: '0 2 * * *' },
+    { label: 'Every 6 hours', value: '0 */6 * * *' },
+    { label: 'Weekly (Sun 2am)', value: '0 2 * * 0' },
+];
+
+const emptyDestForm = {
+    name: '', type: 'local',
+    config: { accessKeyId: '', secretAccessKey: '', region: '', bucket: '', endpoint: '', serviceAccountJson: '', host: '', port: '', username: '', password: '', useTls: false, url: '', vendor: 'other', path: '' },
+    scheduleEnabled: false, cronExpression: '0 2 * * *', retentionCount: 7,
+};
+
+function formatBytes(n) {
+    if (n === null || n === undefined) return '—';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let i = 0, v = Number(n);
+    while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+    return `${v.toFixed(v < 10 && i > 0 ? 1 : 0)} ${units[i]}`;
+}
+
+function BackupTab() {
+    const { token } = useAuth();
+    const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+
+    const [destinations, setDestinations] = useState([]);
+    const [runs, setRuns] = useState([]);
+    const [rcloneAvailable, setRcloneAvailable] = useState(true);
+    const [loading, setLoading] = useState(true);
+    const [msg, setMsg] = useState(null);
+    const [busy, setBusy] = useState(false);
+
+    const [showModal, setShowModal] = useState(false);
+    const [editDest, setEditDest] = useState(null);
+    const [form, setForm] = useState(emptyDestForm);
+    const [confirmDelete, setConfirmDelete] = useState(null);
+
+    useEffect(() => { load(); }, []);
+
+    async function load() {
+        setLoading(true);
+        try {
+            const [d, r, s] = await Promise.all([
+                fetch(apiUrl('/api/backup/destinations'), { headers }),
+                fetch(apiUrl('/api/backup/runs'), { headers }),
+                fetch(apiUrl('/api/backup/rclone-status'), { headers }),
+            ]);
+            if (d.ok) setDestinations((await d.json()).destinations || []);
+            if (r.ok) setRuns((await r.json()).runs || []);
+            if (s.ok) setRcloneAvailable((await s.json()).available);
+        } catch { } finally { setLoading(false); }
+    }
+
+    async function api(path, options, successMsg) {
+        setMsg(null);
+        setBusy(true);
+        try {
+            const res = await fetch(apiUrl(path), { headers, ...options });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Request failed');
+            if (successMsg) setMsg({ type: 'success', text: successMsg });
+            await load();
+            return data;
+        } catch (err) {
+            setMsg({ type: 'error', text: err.message });
+            return null;
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    function openCreate() { setEditDest(null); setForm(emptyDestForm); setShowModal(true); }
+    function openEdit(d) {
+        setEditDest(d);
+        setForm({
+            name: d.name, type: d.type,
+            config: { ...emptyDestForm.config }, // secrets never come back from the API — re-enter to change
+            scheduleEnabled: d.schedule_enabled, cronExpression: d.cron_expression || '0 2 * * *',
+            retentionCount: d.retention_count,
+        });
+        setShowModal(true);
+    }
+
+    async function submitDest(e) {
+        e.preventDefault();
+        const payload = {
+            name: form.name, type: form.type, config: form.config,
+            scheduleEnabled: form.scheduleEnabled, cronExpression: form.cronExpression,
+            retentionCount: Number(form.retentionCount) || 7,
+        };
+        const url = editDest ? `/api/backup/destinations/${editDest.id}` : '/api/backup/destinations';
+        const data = await api(url, { method: editDest ? 'PUT' : 'POST', body: JSON.stringify(payload) }, editDest ? 'Destination updated' : 'Destination created');
+        if (data) setShowModal(false);
+    }
+
+    async function runNow(d) { await api(`/api/backup/destinations/${d.id}/run`, { method: 'POST' }, `Backup started for "${d.name}"`); }
+    async function deleteDest(d) { await api(`/api/backup/destinations/${d.id}`, { method: 'DELETE' }, `"${d.name}" deleted`); setConfirmDelete(null); }
+
+    function scheduleSummary(d) {
+        if (!d.schedule_enabled) return 'Manual only';
+        const preset = CRON_PRESETS.find(p => p.value === d.cron_expression);
+        return preset ? preset.label : d.cron_expression;
+    }
+
+    return (
+        <>
+            {msg && <div className={msg.type === 'error' ? 'auth-error' : 'auth-success'} style={{ marginBottom: 16 }}>{msg.text}</div>}
+            {!rcloneAvailable && (
+                <div className="auth-error" style={{ marginBottom: 16 }}>
+                    rclone isn't available in this container — only the "Local disk" destination will work until the image includes it.
+                </div>
+            )}
+
+            <div className="settings-section glass-card">
+                <div className="settings-section-header">
+                    <div className="settings-section-icon">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" /><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+                        </svg>
+                    </div>
+                    <div>
+                        <h2>Backup destinations</h2>
+                        <p>Encrypted, scheduled backups of your database and secrets — local disk, S3, Google Cloud Storage, SFTP, FTP, or WebDAV.</p>
+                    </div>
+                </div>
+
+                <div className="mcp-audit-header">
+                    <h3>Destinations ({destinations.length})</h3>
+                    <button className="btn btn-primary btn-sm" onClick={openCreate}>+ Add destination</button>
+                </div>
+
+                {loading ? (
+                    <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><div className="spinner spinner-lg" /></div>
+                ) : destinations.length === 0 ? (
+                    <p className="mcp-audit-empty">No backup destinations yet. Add one to start protecting your data.</p>
+                ) : (
+                    <div className="mcp-key-list">
+                        {destinations.map(d => (
+                            <div key={d.id} className="mcp-key-card glass-card">
+                                <div className="mcp-key-card-main">
+                                    <div className="mcp-key-card-title">
+                                        <span className="mcp-key-card-label">{d.name}</span>
+                                        <span className="badge badge-info">{BACKUP_TYPES.find(t => t.id === d.type)?.label || d.type}</span>
+                                        <span className={`badge ${d.schedule_enabled ? 'badge-success' : 'badge-warning'}`}>{scheduleSummary(d)}</span>
+                                        {!d.is_active && <span className="badge badge-danger">Disabled</span>}
+                                    </div>
+                                    <div className="mcp-key-card-meta">
+                                        <span>Retention: last {d.retention_count}</span>
+                                        <span>Last run: {d.last_run_at ? new Date(d.last_run_at).toLocaleString() : 'never'}</span>
+                                    </div>
+                                </div>
+                                <div className="mcp-key-card-actions">
+                                    <button className="btn btn-secondary btn-sm" disabled={busy} onClick={() => runNow(d)}>Run now</button>
+                                    <button className="btn btn-ghost btn-sm" onClick={() => openEdit(d)}>Edit</button>
+                                    <button className="btn btn-danger btn-sm" onClick={() => setConfirmDelete(d)}>Delete</button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            <div className="settings-section glass-card" style={{ marginTop: 20 }}>
+                <div className="mcp-audit-header">
+                    <h3>Backup history</h3>
+                    <button className="btn btn-ghost btn-sm" onClick={load}>Refresh</button>
+                </div>
+                {runs.length === 0 ? (
+                    <p className="mcp-audit-empty">No backups run yet.</p>
+                ) : (
+                    <div className="mcp-audit-scroll">
+                        <table className="mcp-audit-table">
+                            <thead><tr><th>Started</th><th>Destination</th><th>Trigger</th><th>Size</th><th>Status</th><th></th></tr></thead>
+                            <tbody>
+                                {runs.map(r => (
+                                    <tr key={r.id}>
+                                        <td>{new Date(r.started_at).toLocaleString()}</td>
+                                        <td>{r.destination_name}</td>
+                                        <td>{r.triggered_by}</td>
+                                        <td>{formatBytes(r.size_bytes)}</td>
+                                        <td>
+                                            <span className={`mcp-status mcp-status-${r.status === 'success' ? 'success' : r.status === 'running' ? 'denied' : 'error'}`}>{r.status}</span>
+                                            {r.error && <span title={r.error}> ⚠️</span>}
+                                        </td>
+                                        <td>
+                                            {r.status === 'success' && r.destination_type === 'local' && (
+                                                <a className="btn btn-ghost btn-sm" href={apiUrl(`/api/backup/runs/${r.id}/download`)} onClick={(e) => {
+                                                    e.preventDefault();
+                                                    fetch(apiUrl(`/api/backup/runs/${r.id}/download`), { headers })
+                                                        .then(res => res.blob())
+                                                        .then(blob => {
+                                                            const url = URL.createObjectURL(blob);
+                                                            const a = document.createElement('a');
+                                                            a.href = url; a.download = r.file_name || 'backup.tar.gz.enc'; a.click();
+                                                            URL.revokeObjectURL(url);
+                                                        });
+                                                }}>Download</a>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
+
+            {/* Create / Edit modal */}
+            {showModal && (
+                <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setShowModal(false)}>
+                    <div className="modal" style={{ maxWidth: 560 }}>
+                        <h2>{editDest ? 'Edit destination' : 'Add backup destination'}</h2>
+                        <form onSubmit={submitDest}>
+                            <div className="input-group" style={{ marginBottom: 12 }}>
+                                <label>Name</label>
+                                <input className="input-field" placeholder="e.g. Nightly S3 backup" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required autoFocus />
+                            </div>
+
+                            <div className="input-group" style={{ marginBottom: 16 }}>
+                                <label>Destination type</label>
+                                <select className="input-field" value={form.type} disabled={!!editDest} onChange={e => setForm({ ...form, type: e.target.value })}>
+                                    {BACKUP_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                                </select>
+                                {editDest && <p className="mcp-note" style={{ marginTop: 6 }}>Type can't be changed after creation — create a new destination instead.</p>}
+                            </div>
+
+                            {editDest && form.type !== 'local' && (
+                                <p className="mcp-note" style={{ marginBottom: 12 }}>Credential fields are blank for security — leave them blank to keep the stored values, or fill them in to replace.</p>
+                            )}
+
+                            {form.type === 's3' && (
+                                <>
+                                    <div className="settings-form-row">
+                                        <div className="input-group"><label>Access key ID</label><input className="input-field" value={form.config.accessKeyId} onChange={e => setForm({ ...form, config: { ...form.config, accessKeyId: e.target.value } })} autoComplete="off" /></div>
+                                        <div className="input-group"><label>Secret access key</label><input type="password" className="input-field" value={form.config.secretAccessKey} onChange={e => setForm({ ...form, config: { ...form.config, secretAccessKey: e.target.value } })} autoComplete="new-password" /></div>
+                                    </div>
+                                    <div className="settings-form-row">
+                                        <div className="input-group"><label>Bucket</label><input className="input-field" value={form.config.bucket} onChange={e => setForm({ ...form, config: { ...form.config, bucket: e.target.value } })} required /></div>
+                                        <div className="input-group"><label>Region</label><input className="input-field" placeholder="us-east-1" value={form.config.region} onChange={e => setForm({ ...form, config: { ...form.config, region: e.target.value } })} /></div>
+                                    </div>
+                                    <div className="input-group" style={{ marginBottom: 12 }}>
+                                        <label>Custom endpoint (optional)</label>
+                                        <input className="input-field" placeholder="For MinIO, R2, Backblaze B2, Wasabi, DO Spaces…" value={form.config.endpoint} onChange={e => setForm({ ...form, config: { ...form.config, endpoint: e.target.value } })} />
+                                    </div>
+                                </>
+                            )}
+
+                            {form.type === 'gcs' && (
+                                <>
+                                    <div className="input-group" style={{ marginBottom: 12 }}>
+                                        <label>Bucket</label>
+                                        <input className="input-field" value={form.config.bucket} onChange={e => setForm({ ...form, config: { ...form.config, bucket: e.target.value } })} required />
+                                    </div>
+                                    <div className="input-group" style={{ marginBottom: 12 }}>
+                                        <label>Service account JSON key</label>
+                                        <textarea className="input-field" rows={5} style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }} placeholder="Paste the full JSON key file contents" value={form.config.serviceAccountJson} onChange={e => setForm({ ...form, config: { ...form.config, serviceAccountJson: e.target.value } })} />
+                                    </div>
+                                </>
+                            )}
+
+                            {(form.type === 'sftp' || form.type === 'ftp') && (
+                                <>
+                                    <div className="settings-form-row">
+                                        <div className="input-group" style={{ flex: 2 }}><label>Host</label><input className="input-field" value={form.config.host} onChange={e => setForm({ ...form, config: { ...form.config, host: e.target.value } })} required /></div>
+                                        <div className="input-group"><label>Port</label><input type="number" className="input-field" placeholder={form.type === 'sftp' ? '22' : '21'} value={form.config.port} onChange={e => setForm({ ...form, config: { ...form.config, port: e.target.value } })} /></div>
+                                    </div>
+                                    <div className="settings-form-row">
+                                        <div className="input-group"><label>Username</label><input className="input-field" value={form.config.username} onChange={e => setForm({ ...form, config: { ...form.config, username: e.target.value } })} autoComplete="off" /></div>
+                                        <div className="input-group"><label>Password</label><input type="password" className="input-field" value={form.config.password} onChange={e => setForm({ ...form, config: { ...form.config, password: e.target.value } })} autoComplete="new-password" /></div>
+                                    </div>
+                                    {form.type === 'ftp' && (
+                                        <label className="mcp-checkline" style={{ marginBottom: 12 }}>
+                                            <input type="checkbox" checked={form.config.useTls} onChange={e => setForm({ ...form, config: { ...form.config, useTls: e.target.checked } })} />
+                                            <span>Use explicit TLS (FTPS)</span>
+                                        </label>
+                                    )}
+                                </>
+                            )}
+
+                            {form.type === 'webdav' && (
+                                <>
+                                    <div className="input-group" style={{ marginBottom: 12 }}>
+                                        <label>Server URL</label>
+                                        <input className="input-field" placeholder="https://cloud.example.com/remote.php/dav/files/user" value={form.config.url} onChange={e => setForm({ ...form, config: { ...form.config, url: e.target.value } })} required />
+                                    </div>
+                                    <div className="settings-form-row">
+                                        <div className="input-group">
+                                            <label>Vendor</label>
+                                            <select className="input-field" value={form.config.vendor} onChange={e => setForm({ ...form, config: { ...form.config, vendor: e.target.value } })}>
+                                                <option value="nextcloud">Nextcloud</option>
+                                                <option value="owncloud">ownCloud</option>
+                                                <option value="other">Other</option>
+                                            </select>
+                                        </div>
+                                        <div className="input-group"><label>Username</label><input className="input-field" value={form.config.username} onChange={e => setForm({ ...form, config: { ...form.config, username: e.target.value } })} autoComplete="off" /></div>
+                                        <div className="input-group"><label>Password</label><input type="password" className="input-field" value={form.config.password} onChange={e => setForm({ ...form, config: { ...form.config, password: e.target.value } })} autoComplete="new-password" /></div>
+                                    </div>
+                                </>
+                            )}
+
+                            {form.type !== 'local' && (
+                                <div className="input-group" style={{ marginBottom: 16 }}>
+                                    <label>Path / prefix (optional)</label>
+                                    <input className="input-field" placeholder="e.g. sharkshell-backups" value={form.config.path} onChange={e => setForm({ ...form, config: { ...form.config, path: e.target.value } })} />
+                                </div>
+                            )}
+
+                            <div className="input-group" style={{ marginBottom: 12 }}>
+                                <label>Retention</label>
+                                <input type="number" min={1} className="input-field" style={{ maxWidth: 140 }} value={form.retentionCount} onChange={e => setForm({ ...form, retentionCount: e.target.value })} />
+                                <p className="mcp-note" style={{ marginTop: 6 }}>Keep the last N successful backups; older ones are deleted automatically.</p>
+                            </div>
+
+                            <div className="input-group" style={{ marginBottom: 12 }}>
+                                <label className="mcp-checkline">
+                                    <input type="checkbox" checked={form.scheduleEnabled} onChange={e => setForm({ ...form, scheduleEnabled: e.target.checked })} />
+                                    <span>Run automatically on a schedule</span>
+                                </label>
+                            </div>
+
+                            {form.scheduleEnabled && (
+                                <div className="input-group" style={{ marginBottom: 16 }}>
+                                    <label>Cron expression</label>
+                                    <input className="input-field" style={{ fontFamily: 'JetBrains Mono, monospace' }} value={form.cronExpression} onChange={e => setForm({ ...form, cronExpression: e.target.value })} required />
+                                    <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                                        {CRON_PRESETS.map(p => (
+                                            <button type="button" key={p.value} className="btn btn-ghost btn-sm" onClick={() => setForm({ ...form, cronExpression: p.value })}>{p.label}</button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="modal-actions">
+                                <button type="button" className="btn btn-ghost" onClick={() => setShowModal(false)}>Cancel</button>
+                                <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? <span className="spinner" /> : (editDest ? 'Save' : 'Add destination')}</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete confirm */}
+            {confirmDelete && (
+                <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setConfirmDelete(null)}>
+                    <div className="modal" style={{ maxWidth: 400, textAlign: 'center' }}>
+                        <div style={{ fontSize: 40, marginBottom: 12 }}>⚠️</div>
+                        <h2 style={{ marginBottom: 8 }}>Delete “{confirmDelete.name}”?</h2>
+                        <p style={{ color: 'var(--text-secondary)', fontSize: 14, marginBottom: 24 }}>Its backup history is removed too. Files already uploaded to the destination are not deleted.</p>
+                        <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+                            <button className="btn btn-ghost" onClick={() => setConfirmDelete(null)}>Cancel</button>
+                            <button className="btn btn-danger" onClick={() => deleteDest(confirmDelete)} disabled={busy}>{busy ? <span className="spinner" /> : 'Delete'}</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </>
+    );
+}
+
 // ─── Page ───
 
 export default function SettingsPage() {
@@ -602,6 +971,7 @@ export default function SettingsPage() {
         ...(isAdmin ? [
             { id: 'organization', label: 'Organization' },
             { id: 'email', label: 'Email (SMTP)' },
+            { id: 'backup', label: 'Backup' },
         ] : []),
     ];
 
@@ -624,6 +994,7 @@ export default function SettingsPage() {
             {tab === 'account' && <AccountTab />}
             {tab === 'organization' && isAdmin && <OrganizationTab />}
             {tab === 'email' && isAdmin && <EmailTab />}
+            {tab === 'backup' && isAdmin && <BackupTab />}
         </div>
     );
 }

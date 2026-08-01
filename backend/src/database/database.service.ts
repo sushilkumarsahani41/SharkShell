@@ -283,6 +283,43 @@ export class DatabaseService implements OnModuleDestroy {
       try { await this.query(q); } catch { }
     }
 
+    // ─── Scheduled backups ───────────────────────────────────────────────
+
+    await this.query(`
+      CREATE TABLE IF NOT EXISTS backup_destinations (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        name VARCHAR(255) NOT NULL,
+        type VARCHAR(20) NOT NULL,
+        config_encrypted TEXT NOT NULL,
+        config_iv VARCHAR(64) NOT NULL,
+        config_auth_tag VARCHAR(64) NOT NULL,
+        cron_expression VARCHAR(100),
+        schedule_enabled BOOLEAN NOT NULL DEFAULT false,
+        retention_count INTEGER NOT NULL DEFAULT 7,
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        last_run_at TIMESTAMP,
+        created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    await this.query(`
+      CREATE TABLE IF NOT EXISTS backup_runs (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        destination_id UUID NOT NULL REFERENCES backup_destinations(id) ON DELETE CASCADE,
+        status VARCHAR(20) NOT NULL DEFAULT 'running',
+        triggered_by VARCHAR(20) NOT NULL DEFAULT 'manual',
+        size_bytes BIGINT,
+        file_name VARCHAR(255),
+        local_path TEXT,
+        error TEXT,
+        started_at TIMESTAMP DEFAULT NOW(),
+        finished_at TIMESTAMP
+      )
+    `);
+
     console.log('  ✅ Database tables initialized');
   }
 

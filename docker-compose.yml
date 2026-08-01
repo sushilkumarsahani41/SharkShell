@@ -10,6 +10,7 @@ services:
     volumes:
       - pgdata:/app/pgdata
       - secrets:/app/secrets
+      - backups:/app/backups
     environment:
       # ── External Database ──────────────────────────────────────────────────
       # Leave all DB_* blank to use the built-in PostgreSQL (recommended for
@@ -44,3 +45,5 @@ volumes:
     name: sharkshell-pgdata
   secrets:
     name: sharkshell-secrets
+  backups:
+    name: sharkshell-backups
