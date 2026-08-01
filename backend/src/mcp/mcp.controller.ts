@@ -73,7 +73,7 @@ export class McpController {
                 return {
                     protocolVersion: params.protocolVersion || PROTOCOL_VERSION,
                     capabilities: { tools: {} },
-                    serverInfo: { name: 'SharkShell', version: '2.0.0' },
+                    serverInfo: { name: 'SharkShell', version: '2.1.0' },
                 };
             case 'ping':
                 return {};
