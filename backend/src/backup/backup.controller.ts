@@ -1,5 +1,9 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Req, Res, UseGuards, Query } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Req, Res, UseGuards, UseInterceptors, UploadedFile, Query } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
+import * as fs from 'fs/promises';
+import * as os from 'os';
+import * as path from 'path';
 import { AdminGuard } from '../auth/admin.guard';
 import { BackupService } from './backup.service';
 import { RcloneService } from './rclone.service';
@@ -96,6 +100,30 @@ export class BackupController {
             return res.json(result);
         } catch (err: any) {
             return res.status(400).json({ error: err.message });
+        }
+    }
+
+    // Restore from a backup file uploaded from elsewhere (e.g. another instance's local
+    // download) — decryption still requires THIS instance's ENCRYPTION_KEY to match the one
+    // the archive was made with.
+    @Post('restore-upload')
+    @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 1024 * 1024 * 1024 } }))
+    async restoreUpload(@UploadedFile() file: any, @Body() body: { confirmationPhrase?: string }, @Res() res: Response) {
+        if (body.confirmationPhrase !== 'RESTORE') {
+            return res.status(400).json({ error: 'Restore not confirmed — this overwrites the live database and cannot be undone.' });
+        }
+        if (!file) {
+            return res.status(400).json({ error: 'No file uploaded' });
+        }
+        const tmpPath = path.join(os.tmpdir(), `sharkshell-upload-${Date.now()}-${file.originalname || 'backup'}`);
+        try {
+            await fs.writeFile(tmpPath, file.buffer);
+            const result = await this.backupService.restoreFromFile(tmpPath, `uploaded file "${file.originalname}"`);
+            return res.json(result);
+        } catch (err: any) {
+            return res.status(400).json({ error: err.message });
+        } finally {
+            await fs.rm(tmpPath, { force: true }).catch(() => { });
         }
     }
 }

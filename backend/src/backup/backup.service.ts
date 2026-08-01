@@ -177,11 +177,18 @@ export class BackupService implements OnModuleInit {
         if (!row || !row.local_path || !fs.existsSync(row.local_path)) {
             throw new Error('Backup file not found — only local backups can be restored here');
         }
+        return this.restoreFromFile(row.local_path, `run ${runId}`);
+    }
 
+    // Restores from an arbitrary encrypted archive already on disk — used both for a known
+    // local run (above) and for a file the admin uploaded from another instance's backup.
+    // Cross-instance restore only works if the archive was encrypted with THIS instance's
+    // current ENCRYPTION_KEY; otherwise decryption fails with a clear error below.
+    async restoreFromFile(filePath: string, sourceLabel: string) {
         const stagingDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'sharkshell-restore-'));
         try {
             const archivePath = path.join(stagingDir, 'archive.tar.gz');
-            await this.decryptFile(row.local_path, archivePath);
+            await this.decryptFile(filePath, archivePath);
             await this.untar(archivePath, stagingDir);
 
             const dumpPath = path.join(stagingDir, 'database.sql');
@@ -200,7 +207,7 @@ export class BackupService implements OnModuleInit {
                 await fsp.writeFile(path.join(SECRETS_DIR, 'encryption_key'), newEncryptionKey, { mode: 0o600 });
             }
 
-            this.logger.warn(`Restore completed from run ${runId} — restarting process to load restored state.`);
+            this.logger.warn(`Restore completed from ${sourceLabel} — restarting process to load restored state.`);
             setTimeout(() => process.exit(0), 1000);
             return { message: 'Restore complete. The service is restarting to apply the restored data.' };
         } finally {

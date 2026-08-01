@@ -639,6 +639,9 @@ function BackupTab() {
     const [confirmRestore, setConfirmRestore] = useState(null); // run object
     const [restorePhrase, setRestorePhrase] = useState('');
     const [restoring, setRestoring] = useState(false); // true while waiting for the service to restart
+    const [showUploadModal, setShowUploadModal] = useState(false);
+    const [uploadFile, setUploadFile] = useState(null);
+    const [uploadPhrase, setUploadPhrase] = useState('');
 
     useEffect(() => { load(); }, []);
 
@@ -731,6 +734,31 @@ function BackupTab() {
         setTimeout(check, 1500); // give the process a moment to actually exit before polling
     }
 
+    async function doUploadRestore() {
+        if (!uploadFile) return;
+        setBusy(true);
+        setMsg(null);
+        try {
+            const formData = new FormData();
+            formData.append('file', uploadFile);
+            formData.append('confirmationPhrase', 'RESTORE');
+            const res = await fetch(apiUrl('/api/backup/restore-upload'), {
+                method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData,
+            });
+            const data = await res.json().catch(() => null);
+            if (!res.ok) throw new Error(data?.error || 'Restore failed');
+            setShowUploadModal(false);
+            setUploadFile(null);
+            setUploadPhrase('');
+            setRestoring(true);
+            waitForReconnect();
+        } catch (err) {
+            setMsg({ type: 'error', text: err.message });
+        } finally {
+            setBusy(false);
+        }
+    }
+
     function scheduleSummary(d) {
         if (!d.schedule_enabled) return 'Manual only';
         const preset = CRON_PRESETS.find(p => p.value === d.cron_expression);
@@ -793,6 +821,18 @@ function BackupTab() {
                         ))}
                     </div>
                 )}
+            </div>
+
+            <div className="settings-section glass-card" style={{ marginTop: 20 }}>
+                <div className="mcp-audit-header">
+                    <h3>Restore from an uploaded file</h3>
+                </div>
+                <p style={{ color: 'var(--text-secondary)', fontSize: 14, marginBottom: 12 }}>
+                    Move a backup between instances — download a <code className="mcp-inline-code">.tar.gz.enc</code> file
+                    from another SharkShell's backup history, then upload it here. Only works if this instance's
+                    current encryption key matches the one that made the backup.
+                </p>
+                <button className="btn btn-secondary" onClick={() => setShowUploadModal(true)}>Upload backup file…</button>
             </div>
 
             <div className="settings-section glass-card" style={{ marginTop: 20 }}>
@@ -1007,6 +1047,30 @@ function BackupTab() {
                         <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
                             <button className="btn btn-ghost" onClick={() => setConfirmRestore(null)}>Cancel</button>
                             <button className="btn btn-danger" disabled={busy || restorePhrase !== 'RESTORE'} onClick={() => doRestore(confirmRestore)}>{busy ? <span className="spinner" /> : 'Restore & restart'}</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Upload & restore modal */}
+            {showUploadModal && (
+                <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setShowUploadModal(false)}>
+                    <div className="modal" style={{ maxWidth: 440, textAlign: 'center' }}>
+                        <div style={{ fontSize: 40, marginBottom: 12 }}>⚠️</div>
+                        <h2 style={{ marginBottom: 8 }}>Restore from an uploaded backup</h2>
+                        <p style={{ color: 'var(--text-secondary)', fontSize: 14, marginBottom: 16 }}>
+                            This <strong>overwrites the entire live database</strong> with whatever's in the uploaded file.
+                            Anything on this instance not in that backup is permanently lost. The service restarts automatically afterward.
+                        </p>
+                        <div className="input-group" style={{ marginBottom: 16, textAlign: 'left' }}>
+                            <label>Backup file (.tar.gz.enc)</label>
+                            <input type="file" accept=".enc" className="input-field" onChange={e => setUploadFile(e.target.files[0] || null)} />
+                        </div>
+                        <p style={{ color: 'var(--text-secondary)', fontSize: 14, marginBottom: 16 }}>This cannot be undone. Type <strong>RESTORE</strong> to confirm.</p>
+                        <input className="input-field" style={{ textAlign: 'center', marginBottom: 20 }} value={uploadPhrase} onChange={e => setUploadPhrase(e.target.value)} placeholder="RESTORE" />
+                        <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+                            <button className="btn btn-ghost" onClick={() => setShowUploadModal(false)}>Cancel</button>
+                            <button className="btn btn-danger" disabled={busy || !uploadFile || uploadPhrase !== 'RESTORE'} onClick={doUploadRestore}>{busy ? <span className="spinner" /> : 'Restore & restart'}</button>
                         </div>
                     </div>
                 </div>
