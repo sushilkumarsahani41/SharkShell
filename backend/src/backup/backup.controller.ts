@@ -104,21 +104,26 @@ export class BackupController {
     }
 
     // Restore from a backup file uploaded from elsewhere (e.g. another instance's local
-    // download) — decryption still requires THIS instance's ENCRYPTION_KEY to match the one
-    // the archive was made with.
+    // download). By default decryption requires THIS instance's ENCRYPTION_KEY to match the
+    // one the archive was made with; pass sourceEncryptionKey to migrate a backup made under a
+    // different instance's key — see docs/BACKUP.md.
     @Post('restore-upload')
     @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 1024 * 1024 * 1024 } }))
-    async restoreUpload(@UploadedFile() file: any, @Body() body: { confirmationPhrase?: string }, @Res() res: Response) {
+    async restoreUpload(@UploadedFile() file: any, @Body() body: { confirmationPhrase?: string; sourceEncryptionKey?: string }, @Res() res: Response) {
         if (body.confirmationPhrase !== 'RESTORE') {
             return res.status(400).json({ error: 'Restore not confirmed — this overwrites the live database and cannot be undone.' });
         }
         if (!file) {
             return res.status(400).json({ error: 'No file uploaded' });
         }
+        const sourceKey = body.sourceEncryptionKey?.trim() || undefined;
+        if (sourceKey && sourceKey.length !== 64) {
+            return res.status(400).json({ error: 'Source encryption key must be a 64-character hex string' });
+        }
         const tmpPath = path.join(os.tmpdir(), `sharkshell-upload-${Date.now()}-${file.originalname || 'backup'}`);
         try {
             await fs.writeFile(tmpPath, file.buffer);
-            const result = await this.backupService.restoreFromFile(tmpPath, `uploaded file "${file.originalname}"`);
+            const result = await this.backupService.restoreFromFile(tmpPath, `uploaded file "${file.originalname}"`, sourceKey);
             return res.json(result);
         } catch (err: any) {
             return res.status(400).json({ error: err.message });

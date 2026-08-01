@@ -182,13 +182,16 @@ export class BackupService implements OnModuleInit {
 
     // Restores from an arbitrary encrypted archive already on disk — used both for a known
     // local run (above) and for a file the admin uploaded from another instance's backup.
-    // Cross-instance restore only works if the archive was encrypted with THIS instance's
-    // current ENCRYPTION_KEY; otherwise decryption fails with a clear error below.
-    async restoreFromFile(filePath: string, sourceLabel: string) {
+    // By default the archive must have been encrypted with THIS instance's current
+    // ENCRYPTION_KEY. For migrating a backup from a *different* instance, pass that source
+    // instance's key explicitly — it's used only to decrypt the outer archive; the archive's
+    // own embedded encryption_key (below) then gets restored as this instance's new key, same
+    // as any other restore.
+    async restoreFromFile(filePath: string, sourceLabel: string, sourceKey?: string) {
         const stagingDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'sharkshell-restore-'));
         try {
             const archivePath = path.join(stagingDir, 'archive.tar.gz');
-            await this.decryptFile(filePath, archivePath);
+            await this.decryptFile(filePath, archivePath, sourceKey);
             await this.untar(archivePath, stagingDir);
 
             const dumpPath = path.join(stagingDir, 'database.sql');
@@ -215,9 +218,9 @@ export class BackupService implements OnModuleInit {
         }
     }
 
-    private decryptFile(inPath: string, outPath: string): Promise<void> {
-        const key = process.env.ENCRYPTION_KEY;
-        if (!key || key.length !== 64) return Promise.reject(new Error('ENCRYPTION_KEY missing/invalid'));
+    private decryptFile(inPath: string, outPath: string, explicitKey?: string): Promise<void> {
+        const key = explicitKey || process.env.ENCRYPTION_KEY;
+        if (!key || key.length !== 64) return Promise.reject(new Error('ENCRYPTION_KEY missing/invalid — must be a 64-char hex string'));
         return new Promise((resolve, reject) => {
             const proc = spawn('openssl', [
                 'enc', '-d', '-aes-256-cbc', '-pbkdf2',
@@ -301,7 +304,7 @@ export class BackupService implements OnModuleInit {
         const runId = runResult.rows[0].id;
 
         const timestamp = startedAt.toISOString().replace(/[:.]/g, '-');
-        const fileName = `sharkshell-backup-${timestamp}.tar.gz.enc`;
+        const fileName = `sharkshell-backup-${timestamp}.sshell`;
         const stagingDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'sharkshell-backup-'));
 
         try {

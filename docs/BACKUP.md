@@ -10,7 +10,8 @@ Uploads go through [rclone](https://rclone.org/), bundled into the Docker image.
 
 ## 1. What's in a backup
 
-Each backup is a single file: `sharkshell-backup-<timestamp>.tar.gz.enc`, containing:
+Each backup is a single file: `sharkshell-backup-<timestamp>.sshell` (a `.tar.gz`, AES-256-CBC
+encrypted with `openssl`, under a SharkShell-specific extension), containing:
 
 - `database.sql` — a full `pg_dump` of the SharkShell database
 - `secrets/` — `jwt_secret`, `encryption_key`, `db_password` from `/app/secrets`
@@ -82,19 +83,37 @@ to already be on this filesystem.
 
 ### Restore from an uploaded file (moving a backup between instances)
 
-Under **Restore from an uploaded file**, upload a `.tar.gz.enc` you downloaded from another
+Under **Restore from an uploaded file**, upload a `.sshell` file you downloaded from another
 SharkShell instance's backup history and type `RESTORE` to confirm. It runs the exact same
-decrypt/reload pipeline as above, just against an uploaded file instead of a local run. This
-still only works if the **target** instance's current `ENCRYPTION_KEY` matches the one the
-source instance used to make that backup — moving a backup to an instance with a different
-key fails cleanly at the decrypt step with an explicit error.
+decrypt/reload pipeline as above, just against an uploaded file instead of a local run.
 
-For a different `ENCRYPTION_KEY` (e.g. true disaster recovery onto a brand new install), use
-the manual procedure, which restores the key itself first:
+By default this still requires the **target** instance's current `ENCRYPTION_KEY` to match the
+one the source instance used to make that backup. To migrate a backup made under a
+**different** key — moving to a new server, restoring a production backup onto a fresh
+instance, etc. — check **This backup is from a different SharkShell instance** and paste the
+source instance's key:
+
+```bash
+# On the SOURCE instance, retrieve the key that made the backup:
+docker exec sharkshell cat /app/secrets/encryption_key
+```
+
+That key is used only to decrypt the uploaded archive. Once the restore succeeds, the
+archive's own embedded `encryption_key` becomes this instance's new key automatically — same
+as any other restore — so you don't need to touch the target's secrets yourself.
+
+This is the same master key protecting every stored SSH credential and host password on the
+source instance, so treat it accordingly: paste it directly into the field, don't leave it
+sitting in a chat log or unencrypted note longer than necessary, and the resulting target
+instance will hold a full decrypted copy of the source's data — including for a **test**
+instance you don't intend to keep secured to the same standard as production.
+
+For anything the in-app flows above don't cover — e.g. restoring straight onto disk without
+going through the app at all — use the fully manual procedure:
 
 ```bash
 # 1. Decrypt (needs the ENCRYPTION_KEY that was active when this backup was made)
-openssl enc -d -aes-256-cbc -pbkdf2 -pass env:KEY -in sharkshell-backup-2026-08-01.tar.gz.enc -out backup.tar.gz
+openssl enc -d -aes-256-cbc -pbkdf2 -pass env:KEY -in sharkshell-backup-2026-08-01.sshell -out backup.tar.gz
 # ↑ set KEY first: export KEY=<your 64-char hex ENCRYPTION_KEY>
 
 # 2. Extract

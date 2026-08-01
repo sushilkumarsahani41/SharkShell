@@ -642,6 +642,8 @@ function BackupTab() {
     const [showUploadModal, setShowUploadModal] = useState(false);
     const [uploadFile, setUploadFile] = useState(null);
     const [uploadPhrase, setUploadPhrase] = useState('');
+    const [uploadDifferentInstance, setUploadDifferentInstance] = useState(false);
+    const [uploadSourceKey, setUploadSourceKey] = useState('');
 
     useEffect(() => { load(); }, []);
 
@@ -742,6 +744,7 @@ function BackupTab() {
             const formData = new FormData();
             formData.append('file', uploadFile);
             formData.append('confirmationPhrase', 'RESTORE');
+            if (uploadDifferentInstance && uploadSourceKey.trim()) formData.append('sourceEncryptionKey', uploadSourceKey.trim());
             const res = await fetch(apiUrl('/api/backup/restore-upload'), {
                 method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData,
             });
@@ -750,6 +753,8 @@ function BackupTab() {
             setShowUploadModal(false);
             setUploadFile(null);
             setUploadPhrase('');
+            setUploadDifferentInstance(false);
+            setUploadSourceKey('');
             setRestoring(true);
             waitForReconnect();
         } catch (err) {
@@ -828,7 +833,7 @@ function BackupTab() {
                     <h3>Restore from an uploaded file</h3>
                 </div>
                 <p style={{ color: 'var(--text-secondary)', fontSize: 14, marginBottom: 12 }}>
-                    Move a backup between instances — download a <code className="mcp-inline-code">.tar.gz.enc</code> file
+                    Move a backup between instances — download a <code className="mcp-inline-code">.sshell</code> file
                     from another SharkShell's backup history, then upload it here. Only works if this instance's
                     current encryption key matches the one that made the backup.
                 </p>
@@ -867,7 +872,7 @@ function BackupTab() {
                                                             .then(blob => {
                                                                 const url = URL.createObjectURL(blob);
                                                                 const a = document.createElement('a');
-                                                                a.href = url; a.download = r.file_name || 'backup.tar.gz.enc'; a.click();
+                                                                a.href = url; a.download = r.file_name || 'backup.sshell'; a.click();
                                                                 URL.revokeObjectURL(url);
                                                             });
                                                     }}>Download</a>
@@ -1063,14 +1068,28 @@ function BackupTab() {
                             Anything on this instance not in that backup is permanently lost. The service restarts automatically afterward.
                         </p>
                         <div className="input-group" style={{ marginBottom: 16, textAlign: 'left' }}>
-                            <label>Backup file (.tar.gz.enc)</label>
-                            <input type="file" accept=".enc" className="input-field" onChange={e => setUploadFile(e.target.files[0] || null)} />
+                            <label>Backup file (.sshell)</label>
+                            <input type="file" accept=".sshell" className="input-field" onChange={e => setUploadFile(e.target.files[0] || null)} />
                         </div>
+                        <label className="mcp-checkline" style={{ marginBottom: 16, justifyContent: 'flex-start' }}>
+                            <input type="checkbox" checked={uploadDifferentInstance} onChange={e => setUploadDifferentInstance(e.target.checked)} />
+                            <span>This backup is from a different SharkShell instance</span>
+                        </label>
+                        {uploadDifferentInstance && (
+                            <div className="input-group" style={{ marginBottom: 16, textAlign: 'left' }}>
+                                <label>Source instance's encryption key</label>
+                                <input className="input-field" style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }} value={uploadSourceKey} onChange={e => setUploadSourceKey(e.target.value)} placeholder="64-character hex key" />
+                                <p className="mcp-note" style={{ marginTop: 6 }}>
+                                    From the source instance, run <code className="mcp-inline-code">docker exec sharkshell cat /app/secrets/encryption_key</code>.
+                                    Used only to decrypt this file — this instance's own key is unaffected until the restore succeeds, then the backup's own key becomes this instance's key too.
+                                </p>
+                            </div>
+                        )}
                         <p style={{ color: 'var(--text-secondary)', fontSize: 14, marginBottom: 16 }}>This cannot be undone. Type <strong>RESTORE</strong> to confirm.</p>
                         <input className="input-field" style={{ textAlign: 'center', marginBottom: 20 }} value={uploadPhrase} onChange={e => setUploadPhrase(e.target.value)} placeholder="RESTORE" />
                         <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
                             <button className="btn btn-ghost" onClick={() => setShowUploadModal(false)}>Cancel</button>
-                            <button className="btn btn-danger" disabled={busy || !uploadFile || uploadPhrase !== 'RESTORE'} onClick={doUploadRestore}>{busy ? <span className="spinner" /> : 'Restore & restart'}</button>
+                            <button className="btn btn-danger" disabled={busy || !uploadFile || uploadPhrase !== 'RESTORE' || (uploadDifferentInstance && uploadSourceKey.trim().length !== 64)} onClick={doUploadRestore}>{busy ? <span className="spinner" /> : 'Restore & restart'}</button>
                         </div>
                     </div>
                 </div>
