@@ -123,6 +123,47 @@ export class DatabaseService implements OnModuleDestroy {
       try { await this.query(q); } catch { }
     }
 
+    // ─── MCP OAuth: dynamic client registration + authorization codes ───
+
+    await this.query(`
+      CREATE TABLE IF NOT EXISTS oauth_clients (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        client_id VARCHAR(64) UNIQUE NOT NULL,
+        client_name VARCHAR(255),
+        redirect_uris TEXT[] NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    await this.query(`
+      CREATE TABLE IF NOT EXISTS oauth_codes (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        code_hash VARCHAR(64) UNIQUE NOT NULL,
+        client_id VARCHAR(64) NOT NULL REFERENCES oauth_clients(client_id) ON DELETE CASCADE,
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        redirect_uri TEXT NOT NULL,
+        code_challenge VARCHAR(128) NOT NULL,
+        capability VARCHAR(20) NOT NULL,
+        scope_all BOOLEAN NOT NULL,
+        allowed_host_ids UUID[] NOT NULL DEFAULT '{}',
+        allowed_group_ids UUID[] NOT NULL DEFAULT '{}',
+        expires_at TIMESTAMP NOT NULL,
+        used_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    // mcp_tokens: TTL (manual + OAuth keys) and OAuth issuance/refresh metadata
+    const mcpOauthAlters = [
+      'ALTER TABLE mcp_tokens ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP',
+      "ALTER TABLE mcp_tokens ADD COLUMN IF NOT EXISTS oauth_client_id VARCHAR(64) REFERENCES oauth_clients(client_id) ON DELETE SET NULL",
+      'ALTER TABLE mcp_tokens ADD COLUMN IF NOT EXISTS refresh_token_hash VARCHAR(64)',
+      'ALTER TABLE mcp_tokens ADD COLUMN IF NOT EXISTS refresh_token_expires_at TIMESTAMP',
+    ];
+    for (const q of mcpOauthAlters) {
+      try { await this.query(q); } catch { }
+    }
+
     await this.query(`
       CREATE TABLE IF NOT EXISTS mcp_audit_log (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -3,8 +3,14 @@ import { useAuth } from '../context/AuthContext';
 import { apiUrl } from '../api';
 
 const CAP_LABELS = { read_only: 'Read-only', execute: 'Execute' };
+const EXPIRY_OPTIONS = [
+    { value: '', label: 'Never' },
+    { value: '7', label: '7 days' },
+    { value: '30', label: '30 days' },
+    { value: '90', label: '90 days' },
+];
 
-const emptyForm = { label: '', capability: 'execute', scopeAll: true, allowedHostIds: [], allowedGroupIds: [] };
+const emptyForm = { label: '', capability: 'execute', scopeAll: true, allowedHostIds: [], allowedGroupIds: [], expiresInDays: '' };
 
 export default function McpPage() {
     const { token } = useAuth();
@@ -56,6 +62,7 @@ export default function McpPage() {
             scopeAll: k.scope_all,
             allowedHostIds: k.allowed_host_ids || [],
             allowedGroupIds: k.allowed_group_ids || [],
+            expiresInDays: '',
         });
         setShowModal(true);
     }
@@ -72,6 +79,7 @@ export default function McpPage() {
                 scopeAll: form.scopeAll,
                 allowedHostIds: form.scopeAll ? [] : form.allowedHostIds,
                 allowedGroupIds: form.scopeAll ? [] : form.allowedGroupIds,
+                expiresInDays: form.expiresInDays ? Number(form.expiresInDays) : null,
             };
             const url = editKey ? apiUrl(`/api/mcp/token/${editKey.id}`) : apiUrl('/api/mcp/token');
             const res = await fetch(url, { method: editKey ? 'PATCH' : 'POST', headers: authHeaders(true), body: JSON.stringify(payload) });
@@ -127,6 +135,12 @@ export default function McpPage() {
 
     const connectCmd = (t) => `claude mcp add --transport http sharkshell ${mcpUrl} --header "Authorization: Bearer ${t}"`;
 
+    function expirySummary(k) {
+        if (!k.expires_at) return 'Never expires';
+        const isPast = new Date(k.expires_at) < new Date();
+        return `${isPast ? 'Expired' : 'Expires'} ${new Date(k.expires_at).toLocaleDateString()}`;
+    }
+
     return (
         <div>
             {toast && <div className="toast-container"><div className={`toast toast-${toast.type}`}>{toast.msg}</div></div>}
@@ -148,6 +162,7 @@ export default function McpPage() {
                 <div>
                     <h2>MCP Access</h2>
                     <p>Issue scoped keys so AI assistants (Claude and other MCP clients) can manage your servers through SharkShell. Each key can be limited to specific hosts and to read-only vs. command execution. Endpoint: <code className="mcp-inline-code">{mcpUrl}</code></p>
+                    <p style={{ marginTop: 8 }}>Most MCP clients (including Claude) can connect with just this URL — pasting it triggers an OAuth approval popup instead of a manual key. Keys created that way appear below tagged <strong>OAuth</strong> and can be revoked like any other.</p>
                 </div>
             </div>
 
@@ -186,6 +201,7 @@ export default function McpPage() {
                             <div className="mcp-key-card-main">
                                 <div className="mcp-key-card-title">
                                     <span className="mcp-key-card-label">{k.label}</span>
+                                    {k.oauth_client_id && <span className="badge badge-info">OAuth</span>}
                                     <span className={`badge ${k.capability === 'execute' ? 'badge-warning' : 'badge-info'}`}>{CAP_LABELS[k.capability]}</span>
                                     <span className={`badge ${k.scope_all ? 'badge-danger' : 'badge-success'}`}>{scopeSummary(k)}</span>
                                 </div>
@@ -193,6 +209,7 @@ export default function McpPage() {
                                     <code className="mcp-key-code">{k.token_prefix}••••••••</code>
                                     <span>Created {new Date(k.created_at).toLocaleDateString()}</span>
                                     <span>Last used {k.last_used_at ? new Date(k.last_used_at).toLocaleString() : 'never'}</span>
+                                    <span>{expirySummary(k)}</span>
                                 </div>
                             </div>
                             <div className="mcp-key-card-actions">
@@ -258,6 +275,14 @@ export default function McpPage() {
                                         <div><strong>Execute</strong><span>Run commands on allowed hosts.</span></div>
                                     </label>
                                 </div>
+                            </div>
+
+                            <div className="input-group" style={{ marginBottom: 16 }}>
+                                <label>Expires</label>
+                                <select className="input-field" value={form.expiresInDays} onChange={e => setForm({ ...form, expiresInDays: e.target.value })}>
+                                    {EXPIRY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                                </select>
+                                {editKey && <p className="mcp-note" style={{ marginTop: 6 }}>Currently: {expirySummary(editKey)}. Saving with "Never" removes any expiry.</p>}
                             </div>
 
                             <div className="input-group" style={{ marginBottom: 12 }}>

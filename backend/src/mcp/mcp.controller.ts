@@ -23,10 +23,12 @@ export class McpController {
         const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
         const key = await this.mcpTokenService.validate(token);
         if (!key) {
+            const origin = (process.env.APP_URL || (req.headers.origin as string) || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+            res.setHeader('WWW-Authenticate', `Bearer resource_metadata="${origin}/.well-known/oauth-protected-resource"`);
             return res.status(401).json({
                 jsonrpc: '2.0',
                 id: null,
-                error: { code: -32001, message: 'Unauthorized: invalid or missing MCP access key' },
+                error: { code: -32001, message: 'Unauthorized: invalid, expired, or missing MCP access key' },
             });
         }
 

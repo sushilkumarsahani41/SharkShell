@@ -126,15 +126,22 @@ All settings are optional — SharkShell auto-generates secure defaults if not p
 
 SharkShell ships with a built-in [Model Context Protocol](https://modelcontextprotocol.io) server, so AI assistants like Claude can work with your infrastructure through SharkShell.
 
-1. Open **Settings → MCP Access** and click **New Access Key** (shown once — copy it).
-2. Connect a client to the Streamable HTTP endpoint:
+**Fastest path — OAuth:** just add the endpoint, no key to copy:
+
+```bash
+claude mcp add --transport http sharkshell https://your-sharkshell-host/api/mcp
+```
+
+Claude auto-discovers SharkShell's OAuth support and opens a browser approval popup — sign in, pick a capability + host scope, click **Allow**, done. The resulting access key (30-day, silently refreshed) shows up in **Settings → MCP Access** like any other.
+
+**Or manually:** open **Settings → MCP Access**, click **New Access Key** (shown once — copy it), and connect with a header instead:
 
 ```bash
 claude mcp add --transport http sharkshell https://your-sharkshell-host/api/mcp \
   --header "Authorization: Bearer ssk_your_access_key"
 ```
 
-Each key is **scoped**: choose **read-only vs. execute** and limit it to **specific hosts or groups** (or all hosts). Scope and capability are enforced server-side on every call, and every tool call is recorded in an **activity log**. Keys can be **reset** (rotate) or **revoked** anytime, and are stored only as SHA-256 hashes.
+Each key is **scoped**: choose **read-only vs. execute**, limit it to **specific hosts or groups** (or all hosts), and optionally set an **expiry**. Scope and capability are enforced server-side on every call, and every tool call is recorded in an **activity log**. Keys can be **reset** (rotate) or **revoked** anytime, and are stored only as SHA-256 hashes.
 
 Available tools:
 

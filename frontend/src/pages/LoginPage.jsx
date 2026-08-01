@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, Navigate, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams, Navigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function LoginPage() {
@@ -11,6 +11,10 @@ export default function LoginPage() {
     const [code, setCode] = useState('');
     const { login, verify2fa, setupStatus } = useAuth();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    // Only accept an in-app relative path (e.g. from /oauth/authorize) — never an absolute/external URL.
+    const next = searchParams.get('next');
+    const redirectTarget = next && next.startsWith('/') && !next.startsWith('//') ? next : '/dashboard';
 
     if (setupStatus?.requireSetup) {
         return <Navigate to="/register" replace />;
@@ -26,7 +30,7 @@ export default function LoginPage() {
                 setPendingToken(data.pendingToken);
                 return;
             }
-            navigate('/dashboard');
+            navigate(redirectTarget);
         } catch (err) {
             setError(err.message);
         } finally {
@@ -40,7 +44,7 @@ export default function LoginPage() {
         setIsLoading(true);
         try {
             await verify2fa(pendingToken, code);
-            navigate('/dashboard');
+            navigate(redirectTarget);
         } catch (err) {
             setError(err.message);
             // Pending token may have expired — send them back to step 1

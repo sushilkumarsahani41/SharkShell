@@ -8,8 +8,11 @@ import { DatabaseService } from './database/database.service';
 async function bootstrap() {
     const app = await NestFactory.create(AppModule);
 
-    // Global prefix for all routes
-    app.setGlobalPrefix('api');
+    // Global prefix for all routes — except the OAuth discovery documents, which RFC 8414 / RFC 9728
+    // require at fixed root-level well-known paths so MCP clients can find them without config.
+    app.setGlobalPrefix('api', {
+        exclude: ['/.well-known/oauth-authorization-server', '/.well-known/oauth-protected-resource'],
+    });
 
     // CORS
     app.enableCors({
