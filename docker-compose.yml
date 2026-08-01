@@ -25,8 +25,13 @@ services:
       # Override only if you need to restore or sync secrets across instances.
       JWT_SECRET: ${JWT_SECRET:-}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+      # ── Public URL ─────────────────────────────────────────────────────────
+      # Required behind a TLS-terminating reverse proxy/tunnel (Cloudflare
+      # Tunnel, nginx with SSL, etc). Without it, OAuth discovery documents
+      # advertise http:// endpoints and MCP clients refuse to register.
+      APP_URL: ${APP_URL:-}
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost/api/auth/setup-status"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/api/auth/setup-status"]
       interval: 30s
       timeout: 10s
       retries: 3
