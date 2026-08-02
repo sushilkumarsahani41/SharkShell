@@ -45,6 +45,20 @@ export class SshGateway implements OnGatewayConnection, OnGatewayDisconnect {
             return;
         }
 
+        (socket as any).userId = decoded.id;
+        this.clients.set(socket.id, { sshClient: null, sshStream: null });
+        console.log(`  🔌 Client connected: ${socket.id}`);
+
+        // Register event handlers immediately (synchronously, right after token verification)
+        // — not after the async is_active check below. The client emits ssh:connect the
+        // instant its socket transport connects, which can otherwise arrive before a
+        // listener is attached; Socket.IO doesn't buffer/replay dropped events, so that
+        // request would silently vanish and the UI would hang on "Connecting..." forever.
+        socket.on('ssh:connect', (data) => this.handleSshConnect(socket, data));
+        socket.on('ssh:input', (data) => this.handleSshInput(socket, data));
+        socket.on('ssh:resize', (data) => this.handleSshResize(socket, data));
+        socket.on('ssh:disconnect', () => this.handleSshDisconnect(socket));
+
         // Deactivated accounts cannot open SSH sessions even with a valid token
         const active = await this.db.query('SELECT is_active FROM users WHERE id = $1', [decoded.id]);
         if (active.rows.length === 0 || active.rows[0].is_active === false) {
@@ -52,16 +66,6 @@ export class SshGateway implements OnGatewayConnection, OnGatewayDisconnect {
             socket.disconnect();
             return;
         }
-
-        (socket as any).userId = decoded.id;
-        this.clients.set(socket.id, { sshClient: null, sshStream: null });
-        console.log(`  🔌 Client connected: ${socket.id}`);
-
-        // Register event handlers
-        socket.on('ssh:connect', (data) => this.handleSshConnect(socket, data));
-        socket.on('ssh:input', (data) => this.handleSshInput(socket, data));
-        socket.on('ssh:resize', (data) => this.handleSshResize(socket, data));
-        socket.on('ssh:disconnect', () => this.handleSshDisconnect(socket));
     }
 
     handleDisconnect(socket: Socket) {
