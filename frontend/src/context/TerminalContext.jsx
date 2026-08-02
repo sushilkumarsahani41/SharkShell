@@ -262,11 +262,22 @@ export function TerminalProvider({ children }) {
             term.onData((data) => { if (socket.connected) socket.emit('ssh:input', data); });
             term.onResize(({ cols, rows }) => { if (socket.connected) socket.emit('ssh:resize', { cols, rows }); });
 
+            // Safety net: if neither a success nor an error ever arrives (server-side bug,
+            // dropped event, silent network stall), don't leave the UI stuck on "Connecting…"
+            // forever — surface it after a bit longer than the backend's own 20s SSH timeout.
+            let connectWatchdog = setTimeout(() => {
+                term.writeln(`\r\n\x1b[31m❌ Timed out waiting for a response — the connection may have stalled.\x1b[0m\r\n`);
+                updateSessionStatus(sessionId, 'disconnected');
+                saveScrollback(sessionId, sessionRefs.current[sessionId]);
+            }, 25000);
+            const clearWatchdog = () => { clearTimeout(connectWatchdog); };
+
             socket.on('connect', () => {
                 socket.emit('ssh:connect', { hostId: host.id, cols: term.cols, rows: term.rows });
             });
 
             socket.on('ssh:connected', () => {
+                clearWatchdog();
                 updateSessionStatus(sessionId, 'connected');
                 if (!sessionRefs.current[sessionId]?.restoredHistory) term.clear();
                 term.focus();
@@ -275,23 +286,27 @@ export function TerminalProvider({ children }) {
             socket.on('ssh:data', (data) => { term.write(data); });
 
             socket.on('ssh:passphrase-needed', (data) => {
+                clearWatchdog();
                 term.writeln(`\r\n\x1b[33m🔑 Passphrase required for this key\x1b[0m\r\n`);
                 setPassphrasePrompt({ sessionId, hostId: data.hostId });
             });
 
             socket.on('ssh:error', (data) => {
+                clearWatchdog();
                 term.writeln(`\r\n\x1b[31m❌ Error: ${data.message}\x1b[0m\r\n`);
                 updateSessionStatus(sessionId, 'disconnected');
                 saveScrollback(sessionId, sessionRefs.current[sessionId]);
             });
 
             socket.on('ssh:closed', (data) => {
+                clearWatchdog();
                 term.writeln(`\r\n\x1b[33m⚡ ${data.message || 'Connection closed'}\x1b[0m\r\n`);
                 updateSessionStatus(sessionId, 'disconnected');
                 saveScrollback(sessionId, sessionRefs.current[sessionId]);
             });
 
             socket.on('connect_error', (err) => {
+                clearWatchdog();
                 term.writeln(`\r\n\x1b[31m❌ Socket error: ${err.message}\x1b[0m\r\n`);
                 updateSessionStatus(sessionId, 'disconnected');
                 saveScrollback(sessionId, sessionRefs.current[sessionId]);
