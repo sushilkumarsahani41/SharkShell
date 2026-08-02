@@ -168,8 +168,8 @@ export class BackupService implements OnModuleInit {
 
     async restoreLocalBackup(orgId: string, runId: string) {
         const result = await this.db.query(
-            `SELECT r.local_path, r.file_name FROM backup_runs r
-             JOIN backup_destinations d ON d.id = r.destination_id
+            `SELECT r.local_path, r.file_name, d.config_encrypted, d.config_iv, d.config_auth_tag
+             FROM backup_runs r JOIN backup_destinations d ON d.id = r.destination_id
              WHERE r.id = $1 AND d.org_id = $2 AND d.type = 'local' AND r.status = 'success'`,
             [runId, orgId],
         );
@@ -177,16 +177,18 @@ export class BackupService implements OnModuleInit {
         if (!row || !row.local_path || !fs.existsSync(row.local_path)) {
             throw new Error('Backup file not found — only local backups can be restored here');
         }
-        return this.restoreFromFile(row.local_path, `run ${runId}`);
+        const { backupPassword } = this.decryptConfig(row);
+        return this.restoreFromFile(row.local_path, `run ${runId}`, backupPassword);
     }
 
     // Restores from an arbitrary encrypted archive already on disk — used both for a known
     // local run (above) and for a file the admin uploaded from another instance's backup.
-    // By default the archive must have been encrypted with THIS instance's current
-    // ENCRYPTION_KEY. For migrating a backup from a *different* instance, pass that source
-    // instance's key explicitly — it's used only to decrypt the outer archive; the archive's
-    // own embedded encryption_key (below) then gets restored as this instance's new key, same
-    // as any other restore.
+    // By default the archive must have been encrypted with the passphrase that made it: the
+    // source destination's own backup password if it had one configured, else the source
+    // instance's raw ENCRYPTION_KEY. Pass that passphrase explicitly to decrypt a file this
+    // instance didn't create itself — it's used only for the outer archive; the archive's own
+    // embedded encryption_key (below) then gets restored as this instance's new key, same as
+    // any other restore.
     async restoreFromFile(filePath: string, sourceLabel: string, sourceKey?: string) {
         const stagingDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'sharkshell-restore-'));
         try {
@@ -218,9 +220,9 @@ export class BackupService implements OnModuleInit {
         }
     }
 
-    private decryptFile(inPath: string, outPath: string, explicitKey?: string): Promise<void> {
-        const key = explicitKey || process.env.ENCRYPTION_KEY;
-        if (!key || key.length !== 64) return Promise.reject(new Error('ENCRYPTION_KEY missing/invalid — must be a 64-char hex string'));
+    private decryptFile(inPath: string, outPath: string, explicitPassphrase?: string): Promise<void> {
+        const key = explicitPassphrase || process.env.ENCRYPTION_KEY;
+        if (!key) return Promise.reject(new Error('No decryption key/password available'));
         return new Promise((resolve, reject) => {
             const proc = spawn('openssl', [
                 'enc', '-d', '-aes-256-cbc', '-pbkdf2',
@@ -318,11 +320,13 @@ export class BackupService implements OnModuleInit {
                 if (fs.existsSync(src)) await fsp.copyFile(src, path.join(secretsStagingDir, f));
             }
 
+            const config = this.decryptConfig(dest);
+
             const archivePath = path.join(stagingDir, 'archive.tar.gz');
             await this.tarGzip(stagingDir, ['database.sql', 'secrets'], archivePath);
 
             const encryptedPath = path.join(stagingDir, fileName);
-            await this.encryptFile(archivePath, encryptedPath);
+            await this.encryptFile(archivePath, encryptedPath, config.backupPassword);
             const { size } = await fsp.stat(encryptedPath);
 
             let localPath: string | null = null;
@@ -333,7 +337,6 @@ export class BackupService implements OnModuleInit {
                 if (!this.rclone.isAvailable()) {
                     throw new Error('rclone is not installed in this container — remote backup destinations are unavailable');
                 }
-                const config = this.decryptConfig(dest);
                 await this.rclone.copyTo(encryptedPath, dest.type, config, fileName);
             }
 
@@ -414,9 +417,9 @@ export class BackupService implements OnModuleInit {
         });
     }
 
-    private encryptFile(inPath: string, outPath: string): Promise<void> {
-        const key = process.env.ENCRYPTION_KEY;
-        if (!key || key.length !== 64) return Promise.reject(new Error('ENCRYPTION_KEY missing/invalid'));
+    private encryptFile(inPath: string, outPath: string, explicitPassphrase?: string): Promise<void> {
+        const key = explicitPassphrase || process.env.ENCRYPTION_KEY;
+        if (!key) return Promise.reject(new Error('ENCRYPTION_KEY missing/invalid'));
         return new Promise((resolve, reject) => {
             const proc = spawn('openssl', [
                 'enc', '-aes-256-cbc', '-salt', '-pbkdf2',

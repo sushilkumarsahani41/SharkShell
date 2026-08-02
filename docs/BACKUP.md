@@ -16,13 +16,14 @@ encrypted with `openssl`, under a SharkShell-specific extension), containing:
 - `database.sql` — a full `pg_dump` of the SharkShell database
 - `secrets/` — `jwt_secret`, `encryption_key`, `db_password` from `/app/secrets`
 
-The archive is encrypted at rest with your instance's `ENCRYPTION_KEY` (AES-256-CBC via
-`openssl`, PBKDF2-derived) before it ever leaves the container — object storage providers,
-SFTP servers, etc. only ever see ciphertext.
+The archive is encrypted at rest before it ever leaves the container — object storage
+providers, SFTP servers, etc. only ever see ciphertext. By default the passphrase is your
+instance's own `ENCRYPTION_KEY` (AES-256-CBC via `openssl`, PBKDF2-derived), but each
+destination can set its own **backup password** instead — see below.
 
-**The `encryption_key` inside the backup is the same key needed to decrypt the backup
-itself.** Store it somewhere separate from the backup destination — if you lose both, the
-backup is unrecoverable. A password manager or a printed copy in a safe both work.
+**Whichever key/password encrypted the archive is also the one needed to decrypt it.** Store
+it somewhere separate from the backup destination — if you lose both, the backup is
+unrecoverable. A password manager or a printed copy in a safe both work.
 
 ## 2. Adding a destination
 
@@ -43,6 +44,15 @@ subfolder.
 Credentials are AES-256-GCM encrypted at rest in the database and are never returned by the
 API after saving — editing a destination shows blank credential fields; leave them blank to
 keep the stored values, or fill them in to replace.
+
+### Backup password (optional, any destination type)
+
+Every destination can set its own **backup password**, used instead of the instance's raw
+`ENCRYPTION_KEY` to encrypt that destination's archives. It's stored encrypted at rest, so
+scheduled/automatic backups keep running unattended — you only need to type it again when
+restoring somewhere else. This is the recommended way to prepare for migration: a password
+you chose and can remember or share, instead of digging the raw master key out of the server
+via `docker exec`.
 
 ## 3. Scheduling
 
@@ -77,9 +87,11 @@ gated behind a typed confirmation because the action is irreversible. It:
 The page shows a "Restoring…" state and reloads automatically once the service is back — this
 usually takes a few seconds.
 
-This only works for a backup made **by this same instance** (its `ENCRYPTION_KEY` must still
-be able to decrypt the archive) and only for a **Local disk** destination, since the file has
-to already be on this filesystem.
+This only works on a **Local disk** destination (the file has to already be on this
+filesystem) and only for a backup that this instance can still decrypt on its own — i.e. the
+source destination didn't set a backup password, and this instance's `ENCRYPTION_KEY` hasn't
+changed since. Restore auto-detects and uses the destination's backup password if it has one,
+so this path needs no extra input from you either way.
 
 ### Restore from an uploaded file (moving a backup between instances)
 
@@ -88,23 +100,26 @@ SharkShell instance's backup history and type `RESTORE` to confirm. It runs the 
 decrypt/reload pipeline as above, just against an uploaded file instead of a local run.
 
 By default this still requires the **target** instance's current `ENCRYPTION_KEY` to match the
-one the source instance used to make that backup. To migrate a backup made under a
-**different** key — moving to a new server, restoring a production backup onto a fresh
-instance, etc. — check **This backup is from a different SharkShell instance** and paste the
-source instance's key:
+one that encrypted the archive. To migrate a backup encrypted under something else — a
+destination's backup password, or a different instance's raw key — check **This backup is
+from a different SharkShell instance** and provide it:
 
-```bash
-# On the SOURCE instance, retrieve the key that made the backup:
-docker exec sharkshell cat /app/secrets/encryption_key
-```
+- **If the source destination had a backup password set** (Settings → Backup → that
+  destination → Edit), just enter that password. This is the easiest path and the reason to
+  set one in the first place.
+- **Otherwise**, retrieve the source instance's raw key instead:
+  ```bash
+  docker exec sharkshell cat /app/secrets/encryption_key
+  ```
 
-That key is used only to decrypt the uploaded archive. Once the restore succeeds, the
-archive's own embedded `encryption_key` becomes this instance's new key automatically — same
-as any other restore — so you don't need to touch the target's secrets yourself.
+Either way, the value is used only to decrypt the uploaded archive. Once the restore succeeds,
+the archive's own embedded `encryption_key` becomes this instance's new key automatically —
+same as any other restore — so you don't need to touch the target's secrets yourself.
 
-This is the same master key protecting every stored SSH credential and host password on the
-source instance, so treat it accordingly: paste it directly into the field, don't leave it
-sitting in a chat log or unencrypted note longer than necessary, and the resulting target
+The raw instance key is the same master key protecting every stored SSH credential and host
+password on the source instance, so treat it accordingly if you do end up using it: paste it
+directly into the field, don't leave it sitting in a chat log or unencrypted note longer than
+necessary, and the resulting target
 instance will hold a full decrypted copy of the source's data — including for a **test**
 instance you don't intend to keep secured to the same standard as production.
 

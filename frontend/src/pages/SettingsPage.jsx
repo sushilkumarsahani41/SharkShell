@@ -609,7 +609,7 @@ const CRON_PRESETS = [
 
 const emptyDestForm = {
     name: '', type: 'local',
-    config: { accessKeyId: '', secretAccessKey: '', region: '', bucket: '', endpoint: '', serviceAccountJson: '', host: '', port: '', username: '', password: '', useTls: false, url: '', vendor: 'other', path: '' },
+    config: { accessKeyId: '', secretAccessKey: '', region: '', bucket: '', endpoint: '', serviceAccountJson: '', host: '', port: '', username: '', password: '', useTls: false, url: '', vendor: 'other', path: '', backupPassword: '' },
     scheduleEnabled: false, cronExpression: '0 2 * * *', retentionCount: 7,
 };
 
@@ -907,8 +907,8 @@ function BackupTab() {
                                 {editDest && <p className="mcp-note" style={{ marginTop: 6 }}>Type can't be changed after creation — create a new destination instead.</p>}
                             </div>
 
-                            {editDest && form.type !== 'local' && (
-                                <p className="mcp-note" style={{ marginBottom: 12 }}>Credential fields are blank for security — leave them blank to keep the stored values, or fill them in to replace.</p>
+                            {editDest && (
+                                <p className="mcp-note" style={{ marginBottom: 12 }}>Credential and password fields are blank for security — leave them blank to keep the stored values, or fill them in to replace.</p>
                             )}
 
                             {form.type === 's3' && (
@@ -987,6 +987,15 @@ function BackupTab() {
                                     <input className="input-field" placeholder="e.g. sharkshell-backups" value={form.config.path} onChange={e => setForm({ ...form, config: { ...form.config, path: e.target.value } })} />
                                 </div>
                             )}
+
+                            <div className="input-group" style={{ marginBottom: 16 }}>
+                                <label>Backup password <span style={{ color: 'var(--text-tertiary)', fontWeight: 400 }}>(optional)</span></label>
+                                <input type="password" className="input-field" value={form.config.backupPassword} onChange={e => setForm({ ...form, config: { ...form.config, backupPassword: e.target.value } })} autoComplete="new-password" placeholder={editDest ? '•••••••• (leave blank to keep current)' : 'Leave blank to use the instance\'s own key'} />
+                                <p className="mcp-note" style={{ marginTop: 6 }}>
+                                    Encrypts this destination's backups with a password you choose instead of the instance's auto-generated key.
+                                    Makes restoring on another SharkShell instance easier — you just need this password, not server access to retrieve the raw key.
+                                </p>
+                            </div>
 
                             <div className="input-group" style={{ marginBottom: 12 }}>
                                 <label>Retention</label>
@@ -1077,10 +1086,11 @@ function BackupTab() {
                         </label>
                         {uploadDifferentInstance && (
                             <div className="input-group" style={{ marginBottom: 16, textAlign: 'left' }}>
-                                <label>Source instance's encryption key</label>
-                                <input className="input-field" style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }} value={uploadSourceKey} onChange={e => setUploadSourceKey(e.target.value)} placeholder="64-character hex key" />
+                                <label>Source decryption password or key</label>
+                                <input className="input-field" style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }} value={uploadSourceKey} onChange={e => setUploadSourceKey(e.target.value)} placeholder="Backup password, or the raw instance key" />
                                 <p className="mcp-note" style={{ marginTop: 6 }}>
-                                    From the source instance, run <code className="mcp-inline-code">docker exec sharkshell cat /app/secrets/encryption_key</code>.
+                                    If that destination had a backup password set, enter it here. Otherwise, from the source instance run{' '}
+                                    <code className="mcp-inline-code">docker exec sharkshell cat /app/secrets/encryption_key</code> and paste that instead.
                                     Used only to decrypt this file — this instance's own key is unaffected until the restore succeeds, then the backup's own key becomes this instance's key too.
                                 </p>
                             </div>
@@ -1089,7 +1099,7 @@ function BackupTab() {
                         <input className="input-field" style={{ textAlign: 'center', marginBottom: 20 }} value={uploadPhrase} onChange={e => setUploadPhrase(e.target.value)} placeholder="RESTORE" />
                         <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
                             <button className="btn btn-ghost" onClick={() => setShowUploadModal(false)}>Cancel</button>
-                            <button className="btn btn-danger" disabled={busy || !uploadFile || uploadPhrase !== 'RESTORE' || (uploadDifferentInstance && uploadSourceKey.trim().length !== 64)} onClick={doUploadRestore}>{busy ? <span className="spinner" /> : 'Restore & restart'}</button>
+                            <button className="btn btn-danger" disabled={busy || !uploadFile || uploadPhrase !== 'RESTORE' || (uploadDifferentInstance && !uploadSourceKey.trim())} onClick={doUploadRestore}>{busy ? <span className="spinner" /> : 'Restore & restart'}</button>
                         </div>
                     </div>
                 </div>

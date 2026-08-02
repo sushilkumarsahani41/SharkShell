@@ -105,8 +105,9 @@ export class BackupController {
 
     // Restore from a backup file uploaded from elsewhere (e.g. another instance's local
     // download). By default decryption requires THIS instance's ENCRYPTION_KEY to match the
-    // one the archive was made with; pass sourceEncryptionKey to migrate a backup made under a
-    // different instance's key — see docs/BACKUP.md.
+    // one the archive was made with; pass sourceEncryptionKey (the source destination's backup
+    // password, or its raw instance key if it didn't have one set) to migrate a backup made
+    // elsewhere — see docs/BACKUP.md.
     @Post('restore-upload')
     @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 1024 * 1024 * 1024 } }))
     async restoreUpload(@UploadedFile() file: any, @Body() body: { confirmationPhrase?: string; sourceEncryptionKey?: string }, @Res() res: Response) {
@@ -117,9 +118,6 @@ export class BackupController {
             return res.status(400).json({ error: 'No file uploaded' });
         }
         const sourceKey = body.sourceEncryptionKey?.trim() || undefined;
-        if (sourceKey && sourceKey.length !== 64) {
-            return res.status(400).json({ error: 'Source encryption key must be a 64-character hex string' });
-        }
         const tmpPath = path.join(os.tmpdir(), `sharkshell-upload-${Date.now()}-${file.originalname || 'backup'}`);
         try {
             await fs.writeFile(tmpPath, file.buffer);

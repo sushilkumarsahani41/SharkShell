@@ -25,6 +25,9 @@ export interface DestinationConfig {
     vendor?: string; // webdav: nextcloud | owncloud | other
     // shared remote sub-path/prefix
     path?: string;
+    // shared: overrides the instance's ENCRYPTION_KEY as the archive's encryption passphrase
+    // for backups sent to this destination. Optional — falls back to the instance key if unset.
+    backupPassword?: string;
 }
 
 /**
