@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useFiles } from '../context/FilesContext';
+import { useSftp } from '../context/SftpContext';
 import { apiUrl } from '../api';
 
 const DRAG_MIME = 'application/x-sharkshell-file';
@@ -70,7 +70,7 @@ function HostPicker({ pane, onConnect }) {
 }
 
 function Pane({ pane, showRemove, dualPane }) {
-    const { connectHost, navigateInto, navigateUp, navigateTo, mkdir, rename, deleteEntry, downloadEntry, uploadFiles, transferEntry, closePane, disconnectPane } = useFiles();
+    const { connectHost, navigateInto, navigateUp, navigateTo, mkdir, rename, deleteEntry, downloadEntry, uploadFiles, transferEntry, closePane, disconnectPane } = useSftp();
     const [dragKind, setDragKind] = useState(null); // null | 'upload' | 'transfer'
     const dragCounter = useRef(0);
     const [confirmDelete, setConfirmDelete] = useState(null);
@@ -119,7 +119,7 @@ function Pane({ pane, showRemove, dualPane }) {
     }
 
     return (
-        <div className="glass-card" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+        <div className="sftp-pane glass-card" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
             <div className="mcp-audit-header">
                 <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     {pane.hostName || 'Not connected'}
@@ -277,13 +277,13 @@ function Pane({ pane, showRemove, dualPane }) {
     );
 }
 
-export default function FilesPage() {
-    const { panes, addPane } = useFiles();
+export default function SftpPage() {
+    const { panes, addPane } = useSftp();
 
     return (
         <div>
             <div className="page-header">
-                <div><h1>Files</h1><p>Browse, transfer, and manage files over SFTP</p></div>
+                <div><h1>SFTP</h1><p>Browse, transfer, and manage files on your hosts</p></div>
                 {panes.length < 2 && <button className="btn btn-secondary" onClick={addPane} title="Browse a second host side-by-side to drag files between them">+ Add second pane</button>}
             </div>
 

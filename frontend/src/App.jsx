@@ -1,7 +1,7 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { TerminalProvider } from './context/TerminalContext';
-import { FilesProvider } from './context/FilesContext';
+import { SftpProvider } from './context/SftpContext';
 import DashboardLayout from './layouts/DashboardLayout';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
@@ -13,7 +13,7 @@ import HostsPage from './pages/HostsPage';
 import KeystorePage from './pages/KeystorePage';
 import SettingsPage from './pages/SettingsPage';
 import McpPage from './pages/McpPage';
-import FilesPage from './pages/FilesPage';
+import SftpPage from './pages/SftpPage';
 import OAuthConsentPage from './pages/OAuthConsentPage';
 
 function PrivateRoute({ children }) {
@@ -71,7 +71,7 @@ export default function App() {
                 <Route path="keys" element={<KeystorePage />} />
                 <Route path="terminal" element={null} />
                 <Route path="mcp" element={<McpPage />} />
-                <Route path="files" element={<FilesProvider><FilesPage /></FilesProvider>} />
+                <Route path="sftp" element={<SftpProvider><SftpPage /></SftpProvider>} />
                 <Route path="settings" element={<SettingsPage />} />
             </Route>
         </Routes>

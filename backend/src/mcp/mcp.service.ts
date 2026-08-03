@@ -48,13 +48,39 @@ export class McpService {
                     required: ['host', 'command'],
                 },
             },
+            {
+                name: 'download_file',
+                description: `Read a text file from a saved SSH host over SFTP — config files, logs, scripts, small data files. Not for binary files. Truncated at ${MAX_OUTPUT_BYTES / 1024}KB.`,
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        host: { type: 'string', description: 'Host id or host name, as returned by list_hosts' },
+                        path: { type: 'string', description: 'Absolute or home-relative path to the remote file' },
+                    },
+                    required: ['host', 'path'],
+                },
+            },
+            {
+                name: 'upload_file',
+                description: `Write text content to a file on a saved SSH host over SFTP, creating or overwriting it. For config files, scripts, or small data files — max ${MAX_OUTPUT_BYTES / 1024}KB of content.`,
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        host: { type: 'string', description: 'Host id or host name, as returned by list_hosts' },
+                        path: { type: 'string', description: 'Absolute or home-relative path to write on the remote host' },
+                        content: { type: 'string', description: 'Text content to write to the file' },
+                    },
+                    required: ['host', 'path', 'content'],
+                },
+            },
         ];
     }
 
     listTools(key: McpKey) {
         const tools = this.allTools();
-        // A read-only key must not even advertise command execution.
-        return key.capability === 'read_only' ? tools.filter(t => t.name !== 'run_command') : tools;
+        // A read-only key must not even advertise mutating tools.
+        const writeTools = ['run_command', 'upload_file'];
+        return key.capability === 'read_only' ? tools.filter(t => !writeTools.includes(t.name)) : tools;
     }
 
     async callTool(key: McpKey, name: string, args: any) {
@@ -81,6 +107,18 @@ export class McpService {
                     result = this.textResult(out.text);
                     break;
                 }
+                case 'download_file': {
+                    const out = await this.downloadFile(key, args);
+                    auditHost = { id: out.hostId, name: out.hostName };
+                    result = this.textResult(out.text);
+                    break;
+                }
+                case 'upload_file': {
+                    const out = await this.uploadFile(key, args);
+                    auditHost = { id: out.hostId, name: out.hostName };
+                    result = this.textResult(out.text);
+                    break;
+                }
                 default: {
                     const err: any = new Error(`Unknown tool: ${name}`);
                     err.rpcCode = -32602;
@@ -91,7 +129,7 @@ export class McpService {
             await this.tokens.logAudit({
                 userId: key.user_id, tokenId: key.id, tokenLabel: key.label,
                 toolName: name, hostId: auditHost.id, hostName: auditHost.name,
-                command: name === 'run_command' ? args?.command : null, status: 'success',
+                command: this.auditDetail(name, args), status: 'success',
             });
             return result;
         } catch (err: any) {
@@ -99,12 +137,18 @@ export class McpService {
             const denied = err instanceof DeniedError;
             await this.tokens.logAudit({
                 userId: key.user_id, tokenId: key.id, tokenLabel: key.label,
-                toolName: name, hostId: null, hostName: name === 'run_command' ? args?.host : null,
-                command: name === 'run_command' ? args?.command : null,
+                toolName: name, hostId: null, hostName: ['run_command', 'download_file', 'upload_file'].includes(name) ? args?.host : null,
+                command: this.auditDetail(name, args),
                 status: denied ? 'denied' : 'error', detail: err?.message,
             });
             return { content: [{ type: 'text', text: `${denied ? 'Denied' : 'Error'}: ${err?.message || err}` }], isError: true };
         }
+    }
+
+    private auditDetail(toolName: string, args: any): string | null {
+        if (toolName === 'run_command') return args?.command ?? null;
+        if (toolName === 'download_file' || toolName === 'upload_file') return args?.path ?? null;
+        return null;
     }
 
     private textResult(value: any) {
@@ -124,32 +168,41 @@ export class McpService {
             }));
     }
 
+    // Shared by run_command/download_file/upload_file: resolves the host by id or name,
+    // scoped to this user, and enforces the access key's allowed-host scope on the
+    // RESOLVED row — this is the real gate, not list_hosts' filtering.
+    private async resolveHost(key: McpKey, hostArg: string) {
+        if (!hostArg) {
+            const err: any = new Error('"host" argument is required');
+            err.rpcCode = -32602;
+            throw err;
+        }
+        const result = await this.db.query(
+            `SELECT * FROM hosts WHERE user_id = $1 AND (id::text = $2 OR LOWER(name) = LOWER($2)) LIMIT 1`,
+            [key.user_id, String(hostArg)],
+        );
+        if (result.rows.length === 0) {
+            throw new Error(`Host not found: "${hostArg}". Use list_hosts to see available hosts.`);
+        }
+        const hostRow = result.rows[0];
+        if (!this.tokens.isHostAllowed(key, hostRow)) {
+            throw new DeniedError(`Host "${hostRow.name}" is not in this access key's allowed scope.`);
+        }
+        return hostRow;
+    }
+
     private async runCommand(key: McpKey, args: any): Promise<{ text: string; hostId: string; hostName: string }> {
         if (key.capability === 'read_only') {
             throw new DeniedError('This access key is read-only and cannot run commands.');
         }
-        const { host, command } = args;
-        if (!host || !command) {
-            const err: any = new Error('Both "host" and "command" arguments are required');
+        const { command } = args;
+        if (!command) {
+            const err: any = new Error('"command" argument is required');
             err.rpcCode = -32602;
             throw err;
         }
         const timeoutS = Math.min(Math.max(Number(args.timeout_seconds) || DEFAULT_TIMEOUT_S, 1), MAX_TIMEOUT_S);
-
-        const result = await this.db.query(
-            `SELECT * FROM hosts WHERE user_id = $1 AND (id::text = $2 OR LOWER(name) = LOWER($2)) LIMIT 1`,
-            [key.user_id, String(host)],
-        );
-        if (result.rows.length === 0) {
-            throw new Error(`Host not found: "${host}". Use list_hosts to see available hosts.`);
-        }
-        const hostRow = result.rows[0];
-
-        // Enforce scope on the RESOLVED host — this is the real gate, not list_hosts filtering.
-        if (!this.tokens.isHostAllowed(key, hostRow)) {
-            throw new DeniedError(`Host "${hostRow.name}" is not in this access key's allowed scope.`);
-        }
-
+        const hostRow = await this.resolveHost(key, args.host);
         const connConfig = await this.buildConnConfig(key.user_id, hostRow);
         const exec = await this.execOnHost(connConfig, command, timeoutS * 1000);
 
@@ -159,6 +212,41 @@ export class McpService {
         if (exec.stderr) parts.push(`--- stderr ---\n${exec.stderr}`);
         if (exec.truncated) parts.push(`(output truncated at ${MAX_OUTPUT_BYTES / 1024}KB)`);
         return { text: parts.join('\n'), hostId: hostRow.id, hostName: hostRow.name };
+    }
+
+    private async downloadFile(key: McpKey, args: any): Promise<{ text: string; hostId: string; hostName: string }> {
+        const { path } = args;
+        if (!path) {
+            const err: any = new Error('"path" argument is required');
+            err.rpcCode = -32602;
+            throw err;
+        }
+        const hostRow = await this.resolveHost(key, args.host);
+        const connConfig = await this.buildConnConfig(key.user_id, hostRow);
+        const file = await this.sftpRead(connConfig, path);
+
+        const parts = [`Host: ${hostRow.name} (${hostRow.username}@${hostRow.hostname}:${hostRow.port})`, `File: ${path}`, '---', file.text];
+        if (file.truncated) parts.push(`(output truncated at ${MAX_OUTPUT_BYTES / 1024}KB)`);
+        return { text: parts.join('\n'), hostId: hostRow.id, hostName: hostRow.name };
+    }
+
+    private async uploadFile(key: McpKey, args: any): Promise<{ text: string; hostId: string; hostName: string }> {
+        if (key.capability === 'read_only') {
+            throw new DeniedError('This access key is read-only and cannot write files.');
+        }
+        const { path, content } = args;
+        if (!path || content === undefined || content === null) {
+            const err: any = new Error('"path" and "content" arguments are required');
+            err.rpcCode = -32602;
+            throw err;
+        }
+        if (Buffer.byteLength(String(content), 'utf-8') > MAX_OUTPUT_BYTES) {
+            throw new Error(`Content too large (max ${MAX_OUTPUT_BYTES / 1024}KB via MCP — use the SharkShell SFTP page for larger files)`);
+        }
+        const hostRow = await this.resolveHost(key, args.host);
+        const connConfig = await this.buildConnConfig(key.user_id, hostRow);
+        const bytes = await this.sftpWrite(connConfig, path, String(content));
+        return { text: `Wrote ${bytes} bytes to ${path} on ${hostRow.name}`, hostId: hostRow.id, hostName: hostRow.name };
     }
 
     private async buildConnConfig(userId: string, host: any): Promise<any> {
@@ -236,6 +324,71 @@ export class McpService {
                     stream.on('close', (code: number | null, signal?: string) => {
                         finish(() => resolve({ stdout, stderr, code, signal, truncated }));
                     });
+                });
+            });
+            client.on('error', (err) => finish(() => reject(new Error('SSH connection failed: ' + err.message))));
+            client.connect(connConfig);
+        });
+    }
+
+    private sftpRead(connConfig: any, remotePath: string): Promise<{ text: string; truncated: boolean }> {
+        return new Promise((resolve, reject) => {
+            const client = new Client();
+            let settled = false;
+            const finish = (fn: () => void) => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timer);
+                fn();
+                client.end();
+            };
+            const timer = setTimeout(() => finish(() => reject(new Error('SFTP operation timed out'))), 20000);
+
+            client.on('ready', () => {
+                client.sftp((err, sftp) => {
+                    if (err) return finish(() => reject(new Error('Failed to start SFTP: ' + err.message)));
+                    const stream = sftp.createReadStream(remotePath);
+                    let text = '';
+                    let total = 0;
+                    let truncated = false;
+                    stream.on('data', (chunk: Buffer) => {
+                        if (total >= MAX_OUTPUT_BYTES) { truncated = true; return; }
+                        const room = MAX_OUTPUT_BYTES - total;
+                        const chunkText = chunk.toString('utf-8');
+                        const sliced = chunkText.length > room ? chunkText.slice(0, room) : chunkText;
+                        if (sliced.length < chunkText.length) truncated = true;
+                        total += sliced.length;
+                        text += sliced;
+                    });
+                    stream.on('error', (e: any) => finish(() => reject(new Error(`Failed to read "${remotePath}": ${e.message}`))));
+                    stream.on('close', () => finish(() => resolve({ text, truncated })));
+                });
+            });
+            client.on('error', (err) => finish(() => reject(new Error('SSH connection failed: ' + err.message))));
+            client.connect(connConfig);
+        });
+    }
+
+    private sftpWrite(connConfig: any, remotePath: string, content: string): Promise<number> {
+        return new Promise((resolve, reject) => {
+            const client = new Client();
+            let settled = false;
+            const finish = (fn: () => void) => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timer);
+                fn();
+                client.end();
+            };
+            const timer = setTimeout(() => finish(() => reject(new Error('SFTP operation timed out'))), 20000);
+
+            client.on('ready', () => {
+                client.sftp((err, sftp) => {
+                    if (err) return finish(() => reject(new Error('Failed to start SFTP: ' + err.message)));
+                    const writeStream = sftp.createWriteStream(remotePath);
+                    writeStream.on('error', (e: any) => finish(() => reject(new Error(`Failed to write "${remotePath}": ${e.message}`))));
+                    writeStream.on('close', () => finish(() => resolve(Buffer.byteLength(content, 'utf-8'))));
+                    writeStream.end(content, 'utf-8');
                 });
             });
             client.on('error', (err) => finish(() => reject(new Error('SSH connection failed: ' + err.message))));

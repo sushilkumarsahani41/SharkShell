@@ -65,8 +65,10 @@ claude mcp add --transport http sharkshell https://your-sharkshell-host/api/mcp 
 | `list_hosts` | any | — | Hosts **in the key's scope**: `id`, `name`, `hostname`, `port`, `username`, `auth_type`, `key_name`, `group_name`, `has_saved_password`. |
 | `list_ssh_keys` | any | — | Keystore metadata: `id`, `name`, `key_type`, `fingerprint`, `public_key`, `group_name`, `has_passphrase`. **Never** private keys. |
 | `run_command` | `execute` only | `host` (id or name), `command`, optional `timeout_seconds` (default 30, max 300) | `stdout`, `stderr`, exit code. Output capped at 200 KB. |
+| `download_file` | any | `host` (id or name), `path` | Text content of the remote file over SFTP. Not for binary files. Capped at 200 KB. |
+| `upload_file` | `execute` only | `host` (id or name), `path`, `content` | Writes `content` to `path` over SFTP, creating or overwriting it. Content capped at 200 KB. |
 
-`run_command` resolves the target host, **re-checks it against the key's scope**, then connects with the host's stored credentials (decrypted in memory only).
+`run_command`, `download_file`, and `upload_file` all resolve the target host, **re-check it against the key's scope**, then connect with the host's stored credentials (decrypted in memory only).
 
 ### Example
 
@@ -90,6 +92,7 @@ claude mcp add --transport http sharkshell https://your-sharkshell-host/api/mcp 
 
 **Known limits (inherent to shell access):**
 - `run_command` is a real shell. A command like `cat ~/.ssh/id_rsa` or `env` returns that host's own secrets in stdout. Scope keys tightly and prefer read-only or narrow host scope where possible.
+- `download_file`/`upload_file` are for text — config files, logs, scripts, small data. They read/write as UTF-8, so binary files come back garbled. For binary transfers or anything over 200 KB, use the **SFTP** page directly.
 - Bearer keys are only as safe as your endpoint's TLS. Serve SharkShell over HTTPS.
 - `list_ssh_keys` metadata (names, fingerprints, public keys — no secrets) is visible to **any** valid key regardless of host scope; scoping governs hosts and command execution, not keystore enumeration.
 

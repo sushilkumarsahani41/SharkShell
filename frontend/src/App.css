@@ -2393,6 +2393,9 @@ a.stat-card {
 .mcp-key-code { font-family: 'JetBrains Mono', monospace; color: var(--text-accent); font-size: 12px; }
 .mcp-key-card-actions { display: flex; gap: 8px; flex-shrink: 0; }
 
+/* SFTP page */
+.sftp-pane { padding: 18px 20px; }
+
 /* Audit log */
 .mcp-audit { padding: 18px 20px; }
 .mcp-audit-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }

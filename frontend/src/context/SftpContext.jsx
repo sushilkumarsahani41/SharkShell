@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 import { apiUrl } from '../api';
 
-const FilesContext = createContext(null);
+const SftpContext = createContext(null);
 
 function emptyPane(id) {
     return {
@@ -19,7 +19,7 @@ function emptyPane(id) {
     };
 }
 
-export function FilesProvider({ children }) {
+export function SftpProvider({ children }) {
     const { token } = useAuth();
     const [panes, setPanes] = useState([emptyPane('a')]);
 
@@ -195,12 +195,12 @@ export function FilesProvider({ children }) {
     }
 
     return (
-        <FilesContext.Provider value={{
+        <SftpContext.Provider value={{
             panes, addPane, closePane, disconnectPane, connectHost, list, navigateInto, navigateUp, navigateTo,
             mkdir, rename, deleteEntry, downloadEntry, uploadFiles, transferEntry,
         }}>
             {children}
-        </FilesContext.Provider>
+        </SftpContext.Provider>
     );
 }
 
@@ -216,8 +216,8 @@ function parentPath(p) {
     return parts.length ? (p.startsWith('/') ? '/' + parts.join('/') : parts.join('/')) : (p.startsWith('/') ? '/' : '.');
 }
 
-export function useFiles() {
-    const ctx = useContext(FilesContext);
-    if (!ctx) throw new Error('useFiles must be used within FilesProvider');
+export function useSftp() {
+    const ctx = useContext(SftpContext);
+    if (!ctx) throw new Error('useSftp must be used within SftpProvider');
     return ctx;
 }

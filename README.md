@@ -151,6 +151,8 @@ Available tools:
 | `list_hosts` | List in-scope SSH hosts (no secrets) |
 | `list_ssh_keys` | List keystore metadata + public keys (private keys never leave the server) |
 | `run_command` | Execute a command on an in-scope host using its stored credentials (`execute` keys only) |
+| `download_file` | Read a text file from an in-scope host over SFTP |
+| `upload_file` | Write a text file to an in-scope host over SFTP (`execute` keys only) |
 
 📖 **Full guide, tool schemas, and security model: [docs/MCP.md](docs/MCP.md)**
 
