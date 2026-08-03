@@ -35,6 +35,17 @@ export function FilesProvider({ children }) {
         setPanes(prev => (prev.length >= 2 ? prev : [...prev, emptyPane('b')]));
     }
 
+    // Closes the SFTP session but keeps this pane slot — returns to the host picker
+    // so the user can pick a different host without leaving dual-pane mode.
+    async function disconnectPane(paneId) {
+        const pane = panes.find(p => p.id === paneId);
+        if (pane?.sessionId) {
+            fetch(apiUrl(`/api/sftp/sessions/${pane.sessionId}`), { method: 'DELETE', headers: headers() }).catch(() => { });
+        }
+        updatePane(paneId, emptyPane(paneId));
+    }
+
+    // Removes the pane slot entirely (dual-pane -> single-pane).
     async function closePane(paneId) {
         const pane = panes.find(p => p.id === paneId);
         if (pane?.sessionId) {
@@ -185,7 +196,7 @@ export function FilesProvider({ children }) {
 
     return (
         <FilesContext.Provider value={{
-            panes, addPane, closePane, connectHost, list, navigateInto, navigateUp, navigateTo,
+            panes, addPane, closePane, disconnectPane, connectHost, list, navigateInto, navigateUp, navigateTo,
             mkdir, rename, deleteEntry, downloadEntry, uploadFiles, transferEntry,
         }}>
             {children}

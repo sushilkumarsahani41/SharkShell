@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useFiles } from '../context/FilesContext';
 import { apiUrl } from '../api';
@@ -69,9 +69,10 @@ function HostPicker({ pane, onConnect }) {
     );
 }
 
-function Pane({ pane, otherPaneId, showClose, dualPane }) {
-    const { connectHost, navigateInto, navigateUp, navigateTo, mkdir, rename, deleteEntry, downloadEntry, uploadFiles, transferEntry, closePane } = useFiles();
-    const [dragOver, setDragOver] = useState(false);
+function Pane({ pane, showRemove, dualPane }) {
+    const { connectHost, navigateInto, navigateUp, navigateTo, mkdir, rename, deleteEntry, downloadEntry, uploadFiles, transferEntry, closePane, disconnectPane } = useFiles();
+    const [dragKind, setDragKind] = useState(null); // null | 'upload' | 'transfer'
+    const dragCounter = useRef(0);
     const [confirmDelete, setConfirmDelete] = useState(null);
     const [renaming, setRenaming] = useState(null);
     const [renameValue, setRenameValue] = useState('');
@@ -83,9 +84,26 @@ function Pane({ pane, otherPaneId, showClose, dualPane }) {
 
     const crumbs = pane.path === '.' || pane.path === '' ? [] : pane.path.replace(/^\//, '').split('/').filter(Boolean);
 
+    function dragKindFor(e) {
+        return e.dataTransfer.types.includes(DRAG_MIME) ? 'transfer' : 'upload';
+    }
+
+    function handleDragEnter(e) {
+        e.preventDefault();
+        dragCounter.current++;
+        setDragKind(dragKindFor(e));
+    }
+
+    function handleDragLeave(e) {
+        e.preventDefault();
+        dragCounter.current--;
+        if (dragCounter.current <= 0) { dragCounter.current = 0; setDragKind(null); }
+    }
+
     async function handleDrop(e) {
         e.preventDefault();
-        setDragOver(false);
+        dragCounter.current = 0;
+        setDragKind(null);
         const raw = e.dataTransfer.getData(DRAG_MIME);
         if (raw) {
             // Pane-to-pane transfer
@@ -108,14 +126,15 @@ function Pane({ pane, otherPaneId, showClose, dualPane }) {
                     {pane.sessionId && <span className="badge badge-success">Connected</span>}
                 </h3>
                 <div style={{ display: 'flex', gap: 6 }}>
-                    {pane.sessionId && <button className="btn btn-ghost btn-sm" onClick={() => setShowMkdir(true)}>+ Folder</button>}
+                    {pane.sessionId && <button className="btn btn-ghost btn-sm" onClick={() => setShowMkdir(true)} title="Create a new folder here">+ Folder</button>}
                     {pane.sessionId && (
-                        <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer', margin: 0 }}>
+                        <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer', margin: 0 }} title="Choose files from your computer to upload">
                             Upload
                             <input type="file" multiple style={{ display: 'none' }} onChange={e => uploadFiles(pane.id, Array.from(e.target.files))} />
                         </label>
                     )}
-                    {showClose && <button className="btn btn-ghost btn-sm" onClick={() => closePane(pane.id)}>✕</button>}
+                    {pane.sessionId && <button className="btn btn-ghost btn-sm" onClick={() => disconnectPane(pane.id)} title="Close this SFTP connection">Disconnect</button>}
+                    {showRemove && <button className="btn btn-ghost btn-sm" onClick={() => closePane(pane.id)} title="Remove this pane">✕</button>}
                 </div>
             </div>
 
@@ -125,30 +144,49 @@ function Pane({ pane, otherPaneId, showClose, dualPane }) {
                 <HostPicker pane={pane} onConnect={(host, opts) => connectHost(pane.id, host, opts)} />
             ) : (
                 <>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10, flexWrap: 'wrap', fontSize: 13 }}>
-                        <button className="btn btn-ghost btn-sm" onClick={() => navigateUp(pane.id)} title="Up one level">⬆</button>
-                        <span style={{ cursor: 'pointer', color: 'var(--accent-primary)' }} onClick={() => navigateTo(pane.id, '.')}>/</span>
-                        {crumbs.map((c, i) => (
-                            <span key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <span style={{ color: 'var(--text-tertiary)' }}>/</span>
-                                <span style={{ cursor: 'pointer', color: 'var(--accent-primary)' }} onClick={() => navigateTo(pane.id, crumbs.slice(0, i + 1).join('/'))}>{c}</span>
-                            </span>
-                        ))}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 10, flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontSize: 13 }}>
+                            <button className="btn btn-ghost btn-sm" onClick={() => navigateUp(pane.id)} title="Up one level">⬆</button>
+                            <span style={{ cursor: 'pointer', color: 'var(--accent-primary)' }} onClick={() => navigateTo(pane.id, '.')}>/</span>
+                            {crumbs.map((c, i) => (
+                                <span key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <span style={{ color: 'var(--text-tertiary)' }}>/</span>
+                                    <span style={{ cursor: 'pointer', color: 'var(--accent-primary)' }} onClick={() => navigateTo(pane.id, crumbs.slice(0, i + 1).join('/'))}>{c}</span>
+                                </span>
+                            ))}
+                        </div>
+                        <span className="mcp-note" style={{ whiteSpace: 'nowrap' }}>
+                            💡 Drag files here to upload{dualPane ? ', or between panes to transfer' : ''}
+                        </span>
                     </div>
 
                     <div
                         className="mcp-audit-scroll"
-                        style={{ flex: 1, minHeight: 240, border: dragOver ? '2px dashed var(--accent-primary)' : '2px dashed transparent', borderRadius: 8 }}
-                        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-                        onDragLeave={() => setDragOver(false)}
+                        style={{ flex: 1, minHeight: 240, position: 'relative', borderRadius: 8 }}
+                        onDragEnter={handleDragEnter}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDragLeave={handleDragLeave}
                         onDrop={handleDrop}
                     >
+                        {dragKind && (
+                            <div style={{
+                                position: 'absolute', inset: 0, zIndex: 5, display: 'flex', flexDirection: 'column',
+                                alignItems: 'center', justifyContent: 'center', gap: 8,
+                                background: 'rgba(99, 102, 241, 0.12)', border: '2px dashed var(--accent-primary)',
+                                borderRadius: 8, pointerEvents: 'none',
+                            }}>
+                                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--accent-primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+                                </svg>
+                                <strong style={{ color: 'var(--accent-primary)' }}>{dragKind === 'transfer' ? `Drop to transfer to ${pane.hostName}` : 'Drop to upload'}</strong>
+                            </div>
+                        )}
                         {pane.loading ? (
                             <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><div className="spinner spinner-lg" /></div>
                         ) : pane.error ? (
                             <div className="auth-error">{pane.error}</div>
                         ) : pane.entries.length === 0 ? (
-                            <p className="mcp-audit-empty">Empty directory. Drop files here to upload{dualPane ? ', or drag from the other pane.' : '.'}</p>
+                            <p className="mcp-audit-empty">Empty directory.</p>
                         ) : (
                             <table className="mcp-audit-table">
                                 <thead><tr><th></th><th>Name</th><th>Size</th><th>Modified</th><th></th></tr></thead>
@@ -182,9 +220,9 @@ function Pane({ pane, otherPaneId, showClose, dualPane }) {
                                             <td>{formatDate(entry.mtime)}</td>
                                             <td>
                                                 <div style={{ display: 'flex', gap: 4 }}>
-                                                    {entry.type === 'file' && <button className="btn btn-ghost btn-sm" onClick={() => downloadEntry(pane.id, entry)}>↓</button>}
-                                                    <button className="btn btn-ghost btn-sm" onClick={() => { setRenaming(entry.name); setRenameValue(entry.name); }}>✎</button>
-                                                    <button className="btn btn-ghost btn-sm btn-danger-text" onClick={() => setConfirmDelete(entry)}>✕</button>
+                                                    {entry.type === 'file' && <button className="btn btn-ghost btn-sm" title="Download" onClick={() => downloadEntry(pane.id, entry)}>↓</button>}
+                                                    <button className="btn btn-ghost btn-sm" title="Rename" onClick={() => { setRenaming(entry.name); setRenameValue(entry.name); }}>✎</button>
+                                                    <button className="btn btn-ghost btn-sm btn-danger-text" title="Delete" onClick={() => setConfirmDelete(entry)}>✕</button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -246,12 +284,12 @@ export default function FilesPage() {
         <div>
             <div className="page-header">
                 <div><h1>Files</h1><p>Browse, transfer, and manage files over SFTP</p></div>
-                {panes.length < 2 && <button className="btn btn-secondary" onClick={addPane}>+ Add second pane</button>}
+                {panes.length < 2 && <button className="btn btn-secondary" onClick={addPane} title="Browse a second host side-by-side to drag files between them">+ Add second pane</button>}
             </div>
 
             <div style={{ display: 'flex', gap: 20, alignItems: 'stretch' }}>
                 {panes.map(pane => (
-                    <Pane key={pane.id} pane={pane} showClose={panes.length > 1} dualPane={panes.length > 1} />
+                    <Pane key={pane.id} pane={pane} showRemove={panes.length > 1} dualPane={panes.length > 1} />
                 ))}
             </div>
         </div>
