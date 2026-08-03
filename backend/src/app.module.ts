@@ -11,6 +11,7 @@ import { McpModule } from './mcp/mcp.module';
 import { SettingsModule } from './settings/settings.module';
 import { MailModule } from './mail/mail.module';
 import { OrgModule } from './org/org.module';
+import { SftpModule } from './sftp/sftp.module';
 
 @Module({
     imports: [
@@ -25,6 +26,7 @@ import { OrgModule } from './org/org.module';
         GroupsModule,
         McpModule,
         OrgModule,
+        SftpModule,
     ],
     controllers: [AppController]
 })
