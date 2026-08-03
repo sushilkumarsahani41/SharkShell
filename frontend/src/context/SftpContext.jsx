@@ -22,6 +22,7 @@ function emptyPane(id) {
 export function SftpProvider({ children }) {
     const { token } = useAuth();
     const [panes, setPanes] = useState([emptyPane('a')]);
+    const [uploads, setUploads] = useState([]); // global, drives the floating panel regardless of which pane started them
 
     const headers = useCallback((json) => (json
         ? { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
@@ -162,34 +163,71 @@ export function SftpProvider({ children }) {
             });
     }
 
-    async function uploadFiles(paneId, files) {
-        const pane = panes.find(p => p.id === paneId);
-        if (!pane?.sessionId || !files?.length) return;
-        for (const file of files) {
-            const target = joinPath(pane.path, file.name);
-            const formData = new FormData();
-            formData.append('file', file);
-            try {
-                await fetch(apiUrl(`/api/sftp/sessions/${pane.sessionId}/upload?path=${encodeURIComponent(target)}`), {
-                    method: 'POST', headers: headers(), body: formData,
-                });
-            } catch { /* surfaced via refresh not showing the file */ }
-        }
-        await list(paneId);
+    function updateUpload(id, patch) {
+        setUploads(prev => prev.map(u => (u.id === id ? { ...u, ...patch } : u)));
     }
 
-    // Direct host-to-host transfer for dual-pane mode — streams server-side.
+    function dismissUpload(id) {
+        setUploads(prev => prev.filter(u => u.id !== id));
+    }
+
+    function clearFinishedUploads() {
+        setUploads(prev => prev.filter(u => u.status === 'uploading'));
+    }
+
+    // Uploads run in parallel via XMLHttpRequest (not fetch) specifically so we get real
+    // byte-level progress events for the floating panel — fetch's request-body streaming
+    // isn't reliably observable for upload progress across browsers.
+    function uploadFiles(paneId, files) {
+        const pane = panes.find(p => p.id === paneId);
+        if (!pane?.sessionId || !files?.length) return;
+
+        files.forEach(file => {
+            const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+            const target = joinPath(pane.path, file.name);
+            setUploads(prev => [...prev, { id, fileName: file.name, progress: 0, status: 'uploading', error: null }]);
+
+            const formData = new FormData();
+            formData.append('file', file);
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', apiUrl(`/api/sftp/sessions/${pane.sessionId}/upload?path=${encodeURIComponent(target)}`));
+            xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+            xhr.upload.onprogress = (e) => {
+                if (e.lengthComputable) updateUpload(id, { progress: Math.round((e.loaded / e.total) * 100) });
+            };
+            xhr.onload = () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    updateUpload(id, { progress: 100, status: 'done' });
+                } else {
+                    let error = 'Upload failed';
+                    try { error = JSON.parse(xhr.responseText)?.error || error; } catch { }
+                    updateUpload(id, { status: 'error', error });
+                }
+                list(paneId);
+            };
+            xhr.onerror = () => updateUpload(id, { status: 'error', error: 'Network error' });
+            xhr.send(formData);
+        });
+    }
+
+    // Direct host-to-host transfer for dual-pane mode — streams server-side, so there's no
+    // byte-level progress to report; shown in the same panel as an indeterminate spinner.
     async function transferEntry(sourcePaneId, entry, destPaneId) {
         const source = panes.find(p => p.id === sourcePaneId);
         const dest = panes.find(p => p.id === destPaneId);
         if (!source?.sessionId || !dest?.sessionId || entry.type === 'directory') return { ok: false, error: 'Only files can be transferred, and both panes must be connected' };
         const sourcePath = joinPath(source.path, entry.name);
         const destPath = joinPath(dest.path, entry.name);
+
+        const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        setUploads(prev => [...prev, { id, fileName: entry.name, progress: 0, status: 'uploading', indeterminate: true, error: null }]);
+
         const res = await fetch(apiUrl('/api/sftp/transfer'), {
             method: 'POST', headers: headers(true),
             body: JSON.stringify({ sourceSessionId: source.sessionId, sourcePath, destSessionId: dest.sessionId, destPath }),
         });
         const data = await res.json();
+        updateUpload(id, res.ok ? { progress: 100, status: 'done', indeterminate: false } : { status: 'error', error: data.error, indeterminate: false });
         if (res.ok) await list(destPaneId);
         return { ok: res.ok, error: data.error };
     }
@@ -198,6 +236,7 @@ export function SftpProvider({ children }) {
         <SftpContext.Provider value={{
             panes, addPane, closePane, disconnectPane, connectHost, list, navigateInto, navigateUp, navigateTo,
             mkdir, rename, deleteEntry, downloadEntry, uploadFiles, transferEntry,
+            uploads, dismissUpload, clearFinishedUploads,
         }}>
             {children}
         </SftpContext.Provider>

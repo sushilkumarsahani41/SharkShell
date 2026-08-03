@@ -28,6 +28,84 @@ function FileIcon({ type }) {
     return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>;
 }
 
+// Google Drive-style circular progress ring. Indeterminate uploads (host-to-host
+// transfers, which stream server-side with no byte-level progress to report) spin
+// continuously instead of filling in.
+function ProgressRing({ progress, status, indeterminate, size = 26 }) {
+    const stroke = 2.5;
+    const radius = (size - stroke) / 2;
+    const circumference = 2 * Math.PI * radius;
+
+    if (status === 'done') {
+        return (
+            <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+                <circle cx={size / 2} cy={size / 2} r={radius} fill="var(--success)" />
+                <path d={`M${size * 0.28} ${size * 0.52} L${size * 0.44} ${size * 0.68} L${size * 0.74} ${size * 0.32}`} fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+        );
+    }
+    if (status === 'error') {
+        return (
+            <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+                <circle cx={size / 2} cy={size / 2} r={radius} fill="var(--danger)" />
+                <line x1={size * 0.32} y1={size * 0.32} x2={size * 0.68} y2={size * 0.68} stroke="white" strokeWidth="2" strokeLinecap="round" />
+                <line x1={size * 0.68} y1={size * 0.32} x2={size * 0.32} y2={size * 0.68} stroke="white" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+        );
+    }
+    const offset = indeterminate ? circumference * 0.75 : circumference - (progress / 100) * circumference;
+    return (
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: 'rotate(-90deg)' }} className={indeterminate ? 'sftp-spin' : ''}>
+            <circle cx={size / 2} cy={size / 2} r={radius} stroke="var(--border-subtle)" strokeWidth={stroke} fill="none" />
+            <circle
+                cx={size / 2} cy={size / 2} r={radius} stroke="var(--accent-primary)" strokeWidth={stroke} fill="none"
+                strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round"
+                style={{ transition: indeterminate ? 'none' : 'stroke-dashoffset 0.2s ease' }}
+            />
+        </svg>
+    );
+}
+
+function UploadPanel() {
+    const { uploads, dismissUpload, clearFinishedUploads } = useSftp();
+    const [collapsed, setCollapsed] = useState(false);
+
+    if (uploads.length === 0) return null;
+
+    const activeCount = uploads.filter(u => u.status === 'uploading').length;
+    const allDone = activeCount === 0;
+
+    return (
+        <div className="glass-card sftp-upload-panel">
+            <div className="sftp-upload-panel-header" onClick={() => setCollapsed(c => !c)}>
+                <span>{allDone ? `${uploads.length} transfer${uploads.length > 1 ? 's' : ''} complete` : `Transferring ${activeCount} item${activeCount > 1 ? 's' : ''}…`}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <button className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); setCollapsed(c => !c); }} title={collapsed ? 'Expand' : 'Collapse'}>
+                        {collapsed ? '▲' : '▼'}
+                    </button>
+                    <button className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); allDone ? clearFinishedUploads() : null; }} disabled={!allDone} title="Dismiss all">✕</button>
+                </div>
+            </div>
+            {!collapsed && (
+                <div className="sftp-upload-panel-list">
+                    {uploads.map(u => (
+                        <div key={u.id} className="sftp-upload-item">
+                            <ProgressRing progress={u.progress} status={u.status} indeterminate={u.indeterminate} />
+                            <div className="sftp-upload-item-info">
+                                <span className="sftp-upload-item-name" title={u.fileName}>{u.fileName}</span>
+                                {u.status === 'error' && <span className="sftp-upload-item-error">{u.error || 'Failed'}</span>}
+                            </div>
+                            {u.status !== 'uploading' && (
+                                <button className="btn btn-ghost btn-sm" onClick={() => dismissUpload(u.id)} title="Dismiss">✕</button>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
 function HostPicker({ pane, onConnect }) {
     const { token } = useAuth();
     const [hosts, setHosts] = useState([]);
@@ -128,7 +206,10 @@ function Pane({ pane, showRemove, dualPane }) {
                 <div style={{ display: 'flex', gap: 6 }}>
                     {pane.sessionId && <button className="btn btn-ghost btn-sm" onClick={() => setShowMkdir(true)} title="Create a new folder here">+ Folder</button>}
                     {pane.sessionId && (
-                        <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer', margin: 0 }} title="Choose files from your computer to upload">
+                        <label className="btn btn-primary btn-sm" style={{ cursor: 'pointer', margin: 0, display: 'inline-flex', alignItems: 'center', gap: 6 }} title="Choose files from your computer to upload">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
+                            </svg>
                             Upload
                             <input type="file" multiple style={{ display: 'none' }} onChange={e => uploadFiles(pane.id, Array.from(e.target.files))} />
                         </label>
@@ -292,6 +373,8 @@ export default function SftpPage() {
                     <Pane key={pane.id} pane={pane} showRemove={panes.length > 1} dualPane={panes.length > 1} />
                 ))}
             </div>
+
+            <UploadPanel />
         </div>
     );
 }
