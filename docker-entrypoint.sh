@@ -85,6 +85,14 @@ if [ "$DB_VARS_COUNT" -eq 0 ]; then
     fi
 fi
 
+# 3. Upload size ceiling — nginx's client_max_body_size can't read env vars directly,
+# so template it here from the same MAX_UPLOAD_GB the backend reads (see docs/SFTP.md).
+if ! [[ "$MAX_UPLOAD_GB" =~ ^[0-9]+$ ]] || [ "$MAX_UPLOAD_GB" -eq 0 ]; then
+    MAX_UPLOAD_GB=50
+fi
+sed -i "s/client_max_body_size .*;/client_max_body_size ${MAX_UPLOAD_GB}G;/" /etc/nginx/http.d/sharkshell.conf
+echo "ℹ️  Max upload size ceiling: ${MAX_UPLOAD_GB}GB"
+
 echo "🚀 Starting Nginx..."
 nginx
 
