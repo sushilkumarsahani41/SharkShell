@@ -7,12 +7,14 @@ import { AdminGuard } from '../auth/admin.guard';
 import { DatabaseService } from '../database/database.service';
 import { OrgService } from './org.service';
 import { MailService, SmtpConfig } from '../mail/mail.service';
+import { UploadLimitService, MAX_UPLOAD_CEILING_MB } from '../settings/upload-limit.service';
 
 @Controller('org')
 export class OrgController {
     constructor(
         private orgService: OrgService,
         private mailService: MailService,
+        private uploadLimitService: UploadLimitService,
         private db: DatabaseService,
     ) { }
 
@@ -115,6 +117,27 @@ export class OrgController {
             return res.json({ message: `Test email sent to ${req.user.email}` });
         } catch (err: any) {
             return res.status(502).json({ error: `SMTP test failed: ${err?.message || 'unknown error'}` });
+        }
+    }
+
+    // ─── Upload size limit (any member can read, so the SFTP/backup UIs can enforce
+    // it client-side; only admins can change it) ───
+
+    @Get('upload-limit')
+    @UseGuards(AuthGuard)
+    async getUploadLimit() {
+        return { maxUploadMB: await this.uploadLimitService.getMaxUploadMB(), ceilingMB: MAX_UPLOAD_CEILING_MB };
+    }
+
+    @Put('upload-limit')
+    @UseGuards(AdminGuard)
+    @HttpCode(HttpStatus.OK)
+    async setUploadLimit(@Body() body: { maxUploadMB: number }, @Res() res: Response) {
+        try {
+            const maxUploadMB = await this.uploadLimitService.setMaxUploadMB(Number(body.maxUploadMB));
+            return res.json({ maxUploadMB, ceilingMB: MAX_UPLOAD_CEILING_MB });
+        } catch (err: any) {
+            return res.status(400).json({ error: err.message });
         }
     }
 }

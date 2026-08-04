@@ -6,11 +6,15 @@ import { Response } from 'express';
 import * as path from 'path';
 import { AuthGuard } from '../auth/auth.guard';
 import { SftpService } from './sftp.service';
+import { UploadLimitService, MAX_UPLOAD_CEILING_MB } from '../settings/upload-limit.service';
 
 @Controller('sftp')
 @UseGuards(AuthGuard)
 export class SftpController {
-    constructor(private sftp: SftpService) { }
+    constructor(
+        private sftp: SftpService,
+        private uploadLimitService: UploadLimitService,
+    ) { }
 
     @Get('sessions')
     listSessions(@Req() req: any) {
@@ -112,8 +116,11 @@ export class SftpController {
         }
     }
 
+    // FileInterceptor's own limit is the hard ceiling (matches nginx's client_max_body_size) —
+    // the actual admin-configured limit is enforced below, since multer's decorator-level
+    // limit is fixed at startup and can't read the DB-backed setting per request.
     @Post('sessions/:sessionId/upload')
-    @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 1024 * 1024 * 1024 } }))
+    @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_UPLOAD_CEILING_MB * 1024 * 1024 } }))
     async upload(
         @Req() req: any,
         @Param('sessionId') sessionId: string,
@@ -122,6 +129,11 @@ export class SftpController {
         @Res() res: Response,
     ) {
         if (!file) return res.status(400).json({ error: 'No file uploaded' });
+        const maxBytes = await this.uploadLimitService.getMaxUploadBytes();
+        if (file.buffer.length > maxBytes) {
+            const maxMB = await this.uploadLimitService.getMaxUploadMB();
+            return res.status(413).json({ error: `File exceeds the configured upload limit (${maxMB}MB). An admin can raise this in Settings → Organization.` });
+        }
         try {
             const sftpClient = this.sftp.getSftp(req.user.id, sessionId);
             await new Promise<void>((resolve, reject) => {

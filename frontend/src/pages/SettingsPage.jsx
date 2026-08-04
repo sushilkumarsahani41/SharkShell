@@ -271,18 +271,42 @@ function OrganizationTab() {
     const [createdCreds, setCreatedCreds] = useState(null); // { email, password }
     const [resetCreds, setResetCreds] = useState(null); // { email, password }
     const [busy, setBusy] = useState(false);
+    const [uploadLimit, setUploadLimit] = useState(null); // { maxUploadMB, ceilingMB }
+    const [uploadLimitInput, setUploadLimitInput] = useState('');
+    const [uploadMsg, setUploadMsg] = useState(null);
+    const [uploadBusy, setUploadBusy] = useState(false);
 
     useEffect(() => { load(); }, []);
 
     async function load() {
         try {
-            const [orgRes, usersRes] = await Promise.all([
+            const [orgRes, usersRes, uploadRes] = await Promise.all([
                 fetch(apiUrl('/api/org'), { headers }),
                 fetch(apiUrl('/api/org/users'), { headers }),
+                fetch(apiUrl('/api/org/upload-limit'), { headers }),
             ]);
             if (orgRes.ok) { const o = await orgRes.json(); setOrg(o); setOrgName(o.name); }
             if (usersRes.ok) { const d = await usersRes.json(); setMembers(d.users || []); }
+            if (uploadRes.ok) { const u = await uploadRes.json(); setUploadLimit(u); setUploadLimitInput(String(u.maxUploadMB)); }
         } catch { }
+    }
+
+    async function handleSaveUploadLimit(e) {
+        e.preventDefault();
+        setUploadMsg(null);
+        setUploadBusy(true);
+        try {
+            const res = await fetch(apiUrl('/api/org/upload-limit'), { method: 'PUT', headers, body: JSON.stringify({ maxUploadMB: Number(uploadLimitInput) }) });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Failed to save');
+            setUploadLimit(data);
+            setUploadLimitInput(String(data.maxUploadMB));
+            setUploadMsg({ type: 'success', text: 'Upload limit saved' });
+        } catch (err) {
+            setUploadMsg({ type: 'error', text: err.message });
+        } finally {
+            setUploadBusy(false);
+        }
     }
 
     async function api(path, options, successMsg) {
@@ -460,6 +484,30 @@ function OrganizationTab() {
                     </div>
                 </div>
             )}
+
+            <div className="settings-section glass-card" style={{ marginTop: 20 }}>
+                <div className="settings-section-header">
+                    <div className="settings-section-icon">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
+                        </svg>
+                    </div>
+                    <div>
+                        <h2>Uploads</h2>
+                        <p>Maximum file size for SFTP uploads. Applies instance-wide, up to {uploadLimit?.ceilingMB ?? 2048}MB.</p>
+                    </div>
+                </div>
+                <form onSubmit={handleSaveUploadLimit} className="settings-form-row" style={{ alignItems: 'flex-end' }}>
+                    {uploadMsg && <div className={uploadMsg.type === 'error' ? 'auth-error' : 'auth-success'} style={{ flexBasis: '100%' }}>{uploadMsg.text}</div>}
+                    <div className="input-group" style={{ maxWidth: 160 }}>
+                        <label>Max upload size (MB)</label>
+                        <input type="number" min={1} max={uploadLimit?.ceilingMB ?? 2048} className="input-field" value={uploadLimitInput} onChange={e => setUploadLimitInput(e.target.value)} />
+                    </div>
+                    <button type="submit" className="btn btn-ghost" disabled={uploadBusy || !uploadLimitInput || Number(uploadLimitInput) === uploadLimit?.maxUploadMB}>
+                        {uploadBusy ? <span className="spinner" /> : 'Save'}
+                    </button>
+                </form>
+            </div>
         </>
     );
 }

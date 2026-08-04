@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { apiUrl } from '../api';
 
@@ -23,10 +23,20 @@ export function SftpProvider({ children }) {
     const { token } = useAuth();
     const [panes, setPanes] = useState([emptyPane('a')]);
     const [uploads, setUploads] = useState([]); // global, drives the floating panel regardless of which pane started them
+    const [maxUploadMB, setMaxUploadMB] = useState(null); // fetched once; lets us reject oversized files before sending any bytes
 
     const headers = useCallback((json) => (json
         ? { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
         : { Authorization: `Bearer ${token}` }), [token]);
+
+    useEffect(() => {
+        if (!token) return;
+        fetch(apiUrl('/api/org/upload-limit'), { headers: headers() })
+            .then(res => res.ok ? res.json() : null)
+            .then(data => data && setMaxUploadMB(data.maxUploadMB))
+            .catch(() => { });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [token]);
 
     function updatePane(paneId, patch) {
         setPanes(prev => prev.map(p => (p.id === paneId ? { ...p, ...(typeof patch === 'function' ? patch(p) : patch) } : p)));
@@ -185,6 +195,11 @@ export function SftpProvider({ children }) {
         files.forEach(file => {
             const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
             const target = joinPath(pane.path, file.name);
+
+            if (maxUploadMB && file.size > maxUploadMB * 1024 * 1024) {
+                setUploads(prev => [...prev, { id, fileName: file.name, progress: 0, status: 'error', error: `Exceeds ${maxUploadMB}MB limit` }]);
+                return;
+            }
             setUploads(prev => [...prev, { id, fileName: file.name, progress: 0, status: 'uploading', error: null }]);
 
             const formData = new FormData();
