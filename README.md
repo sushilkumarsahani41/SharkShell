@@ -122,6 +122,7 @@ All settings are optional — SharkShell auto-generates secure defaults if not p
 | `JWT_SECRET` | *auto-generated RSA* | JWT signing key (RSA 2048-bit keypair) |
 | `COMPOSE_PORT` | `8080` | Exposed HTTP port |
 | `APP_URL` | *auto-detected* | Public `https://` URL. **Required** behind a TLS-terminating reverse proxy or tunnel (Cloudflare Tunnel, nginx with SSL, etc.) — without it, OAuth discovery documents advertise `http://` endpoints and MCP clients like Claude will refuse to register. |
+| `MAX_UPLOAD_GB` | `50` | Hard ceiling (in GB) for SFTP uploads — bounds both nginx's `client_max_body_size` and the backend's admin-configurable upload limit. See [docs/SFTP.md](docs/SFTP.md). |
 
 ## 🤖 MCP Access
 
