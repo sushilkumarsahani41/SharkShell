@@ -5,7 +5,12 @@
 # Targets:  Debian / Ubuntu (apt + systemd)  |  Alpine (apk + OpenRC)
 # Arch:     x86_64 and arm64
 #
-#   Install / re-deploy:  sudo ./deploy.sh      (from the repo root)
+#   One-liner (pulls everything for you):
+#     curl -fsSL https://raw.githubusercontent.com/sushilkumarsahani41/SharkShell/main/install.sh | sudo bash
+#
+#   Or from a local clone / release bundle:
+#     sudo ./deploy.sh
+#
 #   Day-to-day management: sharkshell <cmd>
 #
 # Layout:
@@ -25,15 +30,43 @@ LOG_DIR="$DATA_DIR/logs"
 SERVICE="sharkshell"
 RUN_USER="sharkshell"
 HEALTH_URL="http://127.0.0.1/api/auth/setup-status"
+GIT_REPO="https://github.com/sushilkumarsahani41/SharkShell.git"
 
 log() { printf '\033[1;34m[sharkshell]\033[0m %s\n' "$*"; }
 die() { printf '\033[1;31m[sharkshell] ERROR:\033[0m %s\n' "$*" >&2; exit 1; }
 
 [ "$(id -u)" -eq 0 ] || die "run as root: sudo ./deploy.sh"
 
-REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-[ -f "$REPO_DIR/backend/package.json" ] && [ -f "$REPO_DIR/frontend/package.json" ] \
-    || die "run from the SharkShell repo root (backend/ and frontend/ not found in $REPO_DIR)"
+# ── 0. Locate source ─────────────────────────────────────────
+# Priority: next to this script → recorded src.path → git clone.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR=""
+if [ -f "$SCRIPT_DIR/backend/package.json" ] && [ -f "$SCRIPT_DIR/frontend/package.json" ]; then
+    REPO_DIR="$SCRIPT_DIR"
+elif [ -f "$ENV_DIR/src.path" ] && [ -f "$(cat "$ENV_DIR/src.path")/backend/package.json" ]; then
+    REPO_DIR="$(cat "$ENV_DIR/src.path")"
+fi
+if [ -z "$REPO_DIR" ]; then
+    log "No local source found — cloning from GitHub..."
+    command -v git >/dev/null 2>&1 || {
+        . /etc/os-release
+        case "${ID:-}" in
+            debian|ubuntu) apt-get update -qq && apt-get install -y -qq git >/dev/null ;;
+            alpine)        apk add --no-cache git ;;
+            *) die "git not found and distro unsupported — install git and re-run" ;;
+        esac
+    }
+    REPO_DIR="/opt/sharkshell-src"
+    if [ -d "$REPO_DIR/.git" ]; then
+        (cd "$REPO_DIR" && git pull --ff-only)
+    else
+        rm -rf "$REPO_DIR"
+        git clone --depth 1 "$GIT_REPO" "$REPO_DIR"
+    fi
+    log "Source ready at $REPO_DIR"
+else
+    log "Using source at $REPO_DIR"
+fi
 
 # ── 1. Detect distro ─────────────────────────────────────────
 . /etc/os-release
@@ -48,7 +81,7 @@ log "Detected: ${PRETTY_NAME}"
 if [ "$DISTRO" = debian ]; then
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -qq
-    apt-get install -y -qq curl ca-certificates nginx postgresql postgresql-client logrotate >/dev/null
+    apt-get install -y -qq curl ca-certificates git nginx postgresql postgresql-client logrotate >/dev/null
     if ! command -v node >/dev/null 2>&1; then
         log "Installing Node.js 20 (NodeSource)..."
         curl -fsSL https://deb.nodesource.com/setup_20.x | bash - >/dev/null
@@ -56,7 +89,7 @@ if [ "$DISTRO" = debian ]; then
     fi
 else
     log "Installing packages (apk)..."
-    apk add --no-cache nodejs npm nginx postgresql postgresql-client logrotate su-exec curl
+    apk add --no-cache nodejs npm nginx postgresql postgresql-client logrotate su-exec curl git
 fi
 command -v node  >/dev/null 2>&1 || die "node not found after install"
 command -v nginx >/dev/null 2>&1 || die "nginx not found after install"
@@ -335,6 +368,7 @@ cat <<EOF
      Config:   $ENV_FILE   (edit, then: sharkshell restart)
      Secrets:  $SECRETS_DIR/
      Log:      $LOG_DIR/backend.log
+     Source:   $REPO_DIR
      DB:       $([ "$INTERNAL_DB" = 1 ] && echo "built-in PostgreSQL (localhost)" || echo "external ($DB_HOST:$DB_PORT/$DB_NAME)")
 
      Commands:

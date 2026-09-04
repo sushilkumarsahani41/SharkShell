@@ -394,7 +394,7 @@ docker compose up -d</code></pre>
                         <div class="qs-number">1</div>
                         <div class="qs-info">
                             <h3>Run the installer</h3>
-                            <p>On any <strong>Debian / Ubuntu</strong> or <strong>Alpine</strong> box — Proxmox LXC, small VPS, Raspberry Pi. Downloads the release bundle, installs Node.js, nginx, and PostgreSQL, builds the app, and wires everything up.</p>
+                            <p>On any <strong>Debian / Ubuntu</strong> or <strong>Alpine</strong> box — Proxmox LXC, small VPS, Raspberry Pi. One command pulls everything: installs Node.js, nginx, and PostgreSQL, clones the source, builds the app, and wires it all up.</p>
                             <div class="code-block">
                                 <div class="code-header">
                                     <div class="code-dots" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -403,10 +403,9 @@ docker compose up -d</code></pre>
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
                                     </button>
                                 </div>
-                                <pre><code id="cmd3">curl -fsSL https://github.com/sushilkumarsahani41/SharkShell/releases/latest/download/sharkshell-deploy-2.3.0.tar.gz \
-  | tar -xz &amp;&amp; cd sharkshell-* &amp;&amp; sudo ./deploy.sh</code></pre>
+                                <pre><code id="cmd3">curl -fsSL https://raw.githubusercontent.com/sushilkumarsahani41/SharkShell/main/install.sh | sudo bash</code></pre>
                             </div>
-                            <p class="qs-alt">Prefer source? <code>git clone https://github.com/sushilkumarsahani41/SharkShell.git &amp;&amp; cd SharkShell &amp;&amp; sudo ./deploy.sh</code></p>
+                            <p class="qs-alt">Or from a release bundle: <code>curl -fsSL https://github.com/sushilkumarsahani41/SharkShell/releases/latest/download/sharkshell-deploy-2.3.0.tar.gz | tar -xz &amp;&amp; cd sharkshell-* &amp;&amp; sudo ./deploy.sh</code></p>
                         </div>
                     </div>
                     <div class="qs-step">

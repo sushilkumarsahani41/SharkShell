@@ -71,7 +71,7 @@ jobs:
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           mkdir -p sharkshell-"$VERSION"/bin
-          cp deploy.sh sharkshell-"$VERSION"/
+          cp deploy.sh install.sh sharkshell-"$VERSION"/
           cp nginx.conf sharkshell-"$VERSION"/
           cp bin/run.sh bin/sharkshell sharkshell-"$VERSION"/bin/
           cp README.md LICENSE sharkshell-"$VERSION"/ 2>/dev/null || true
@@ -101,18 +101,18 @@ jobs:
 
           ---
 
-          **Script-based deploy (LXC / VPS / bare metal, no Docker):**
-          Supports Debian/Ubuntu (systemd) and Alpine (OpenRC), x86_64 + arm64. One command:
-          \`\`\`bash
-          curl -fsSL https://github.com/sushilkumarsahani41/SharkShell/releases/latest/download/sharkshell-deploy-${VERSION}.tar.gz \\
-            | tar -xz && cd sharkshell-* && sudo ./deploy.sh
-          \`\`\`
-          Or from source:
-          \`\`\`bash
-          git clone https://github.com/sushilkumarsahani41/SharkShell.git && cd SharkShell && sudo ./deploy.sh
-          \`\`\`
-          Manage it with \`sharkshell status | logs | db | restart | update | uninstall\`.
-          EOF
+            **Script-based deploy (LXC / VPS / bare metal, no Docker):**
+            Supports Debian/Ubuntu (systemd) and Alpine (OpenRC), x86_64 + arm64. One command:
+            ```bash
+            curl -fsSL https://raw.githubusercontent.com/sushilkumarsahani41/SharkShell/main/install.sh | sudo bash
+            ```
+            Or from this release bundle:
+            ```bash
+            curl -fsSL https://github.com/sushilkumarsahani41/SharkShell/releases/latest/download/sharkshell-deploy-${VERSION}.tar.gz \\
+              | tar -xz && cd sharkshell-* && sudo ./deploy.sh
+            ```
+            Manage it with \`sharkshell status | logs | db | restart | update | uninstall\`.
+            EOF
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
