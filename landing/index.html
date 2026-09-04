@@ -100,7 +100,7 @@
                 SharkShell is a self-hosted web SSH client with an encrypted keystore, team
                 organizations, two-factor auth, and a built-in MCP server, so both your team
                 <em>and</em> your AI assistants can manage your servers. One Docker command — or
-                one bash script on any Debian, Ubuntu, or Alpine box.
+                one bash script on any Debian, Ubuntu, Fedora, RHEL, Arch, or Alpine box.
             </p>
             <div class="hero-actions">
                 <a href="#quickstart" class="btn btn-primary btn-lg" data-track="hero_get_started" data-cta="get_started">
@@ -206,7 +206,7 @@
                 <article class="bento-cell bento-deploy" id="deploy">
                     <span class="new-chip">New in 2.3</span>
                     <h3>Runs where Docker can't</h3>
-                    <p>Script-based deploy for LXC containers, Proxmox, tiny VPS, and Raspberry Pi. No daemon, no image pulls — just Node.js, nginx, and PostgreSQL on Debian, Ubuntu, or Alpine. ~512 MB RAM at runtime.</p>
+                    <p>Script-based deploy for LXC containers, Proxmox, tiny VPS, and Raspberry Pi. No daemon, no image pulls — just Node.js, nginx, and PostgreSQL on Debian, Ubuntu, Fedora, RHEL, Arch, or Alpine. ~512 MB RAM at runtime.</p>
                 </article>
             </div>
         </div>
@@ -339,7 +339,7 @@
                     </button>
                     <button class="qs-method-btn" data-method="script" role="tab" aria-selected="false">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
-                        Script (LXC / bare metal)
+                        Script (any Linux)
                     </button>
                 </div>
 
@@ -399,7 +399,7 @@ docker compose up -d</code></pre>
                         <div class="qs-number">1</div>
                         <div class="qs-info">
                             <h3>Run the installer</h3>
-                            <p>On any <strong>Debian / Ubuntu</strong> or <strong>Alpine</strong> box — Proxmox LXC, small VPS, Raspberry Pi. One command pulls everything: installs Node.js, nginx, and PostgreSQL, clones the source, builds the app, and wires it all up.</p>
+                            <p>On <strong>Debian / Ubuntu</strong>, <strong>Fedora / RHEL / Rocky / Alma</strong>, <strong>Arch</strong>, or <strong>Alpine</strong> — Proxmox LXC, small VPS, Raspberry Pi, bare metal. One command pulls everything: installs Node.js, nginx, and PostgreSQL, downloads the source, builds the app, and wires it all up.</p>
                             <div class="code-block">
                                 <div class="code-header">
                                     <div class="code-dots" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -417,7 +417,7 @@ docker compose up -d</code></pre>
                         <div class="qs-number">2</div>
                         <div class="qs-info">
                             <h3>Manage it like a native service</h3>
-                            <p>The deploy installs a <code>sharkshell</code> CLI on top of systemd (Debian/Ubuntu) or OpenRC (Alpine).</p>
+                            <p>The deploy installs a <code>sharkshell</code> CLI on top of systemd (everywhere except Alpine, which uses OpenRC).</p>
                             <div class="code-block">
                                 <div class="code-header">
                                     <div class="code-dots" aria-hidden="true"><span></span><span></span><span></span></div>

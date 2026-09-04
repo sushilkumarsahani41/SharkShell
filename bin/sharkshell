@@ -161,7 +161,12 @@ cmd_uninstall() {
 
     echo "Removing nginx config..."
     rm -f /etc/nginx/sites-enabled/sharkshell.conf /etc/nginx/sites-available/sharkshell.conf \
-          /etc/nginx/http.d/sharkshell.conf
+          /etc/nginx/http.d/sharkshell.conf /etc/nginx/conf.d/sharkshell.conf
+    # RHEL/Arch: deploy.sh replaced nginx.conf itself (embedded default site,
+    # no sites-available convention there) — restore the distro's original.
+    if [ -f /etc/nginx/nginx.conf.orig ]; then
+        mv /etc/nginx/nginx.conf.orig /etc/nginx/nginx.conf
+    fi
     nginx -t 2>/dev/null && (using_systemd && systemctl reload nginx || rc-service nginx reload 2>/dev/null || true) || true
 
     echo "Removing logrotate config..."

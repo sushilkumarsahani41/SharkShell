@@ -109,11 +109,15 @@ docker run -d \
 
 ---
 
-### Script-Based Deploy (LXC / VPS / Bare Metal — No Docker)
+### Script-Based Deploy (Any Linux — No Docker)
 
-For low-resource environments (Proxmox LXC containers, small VPS, Raspberry Pi), deploy directly with a bash script. **No Docker daemon, no image pulls, no container overhead** — just Node.js, nginx, and PostgreSQL.
+Deploy directly with a bash script on any physical server, VPS, cloud VM, or LXC container. **No Docker daemon, no image pulls, no container overhead** — just Node.js, nginx, and PostgreSQL.
 
-Supported: **Debian / Ubuntu** (apt + systemd) and **Alpine** (apk + OpenRC), x86_64 and arm64.
+Supported distros, x86_64 and arm64:
+- **Debian / Ubuntu** (apt + systemd)
+- **Fedora / RHEL / Rocky / AlmaLinux** (dnf + systemd)
+- **Arch Linux / Manjaro** (pacman + systemd)
+- **Alpine** (apk + OpenRC)
 
 ```bash
 curl -fsSL https://sharkshell.in/get | sudo bash
@@ -135,7 +139,7 @@ The script:
 4. Auto-generates and persists secrets (JWT, encryption key, DB password)
 5. Sets up the built-in PostgreSQL (localhost-only, low-resource tuning) — or your external DB if configured
 6. Configures nginx (UI on :80, `/api/` proxy, WebSockets, upload ceiling)
-7. Installs and enables the service (systemd on Debian/Ubuntu, OpenRC on Alpine)
+7. Installs and enables the service (systemd everywhere except Alpine, which uses OpenRC)
 8. Waits for the health endpoint, then prints next steps
 
 Open **http://server-ip** and complete the first-time admin setup.
