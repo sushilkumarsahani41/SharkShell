@@ -88,7 +88,7 @@ document.querySelectorAll('.tab-btn').forEach((btn) => {
 const heroCmd = document.getElementById('heroCmd');
 const heroCommands = {
     docker: '$ docker run -d -p 8080:80 greatsharktech/sharkshell:latest',
-    script: '$ git clone https://github.com/sushilkumarsahani41/SharkShell.git && cd SharkShell && sudo ./deploy.sh'
+    script: '$ curl -fsSL https://sharkshell.in/get | sudo bash'
 };
 document.querySelectorAll('.deploy-tab').forEach((tab) => {
     tab.addEventListener('click', () => {
