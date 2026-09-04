@@ -54,8 +54,21 @@ if [ -z "$REPO_DIR" ]; then
     TMP_TAR="$(mktemp /tmp/sharkshell-src.XXXXXX.tar.gz)"
     TMP_EXTRACT="$(mktemp -d /tmp/sharkshell-extract.XXXXXX)"
     trap 'rm -rf "$TMP_TAR" "$TMP_EXTRACT"' EXIT
-    if ! curl -fsSL "https://github.com/sushilkumarsahani41/SharkShell/releases/latest/download/sharkshell-src.tar.gz" -o "$TMP_TAR"; then
-        die "failed to download source tarball — check network or deploy from a local clone"
+    # "sharkshell-src.tar.gz" never existed as a release asset (404s on
+    # every version — the uploaded asset is the versioned
+    # sharkshell-deploy-X.Y.Z.tar.gz), so this always failed here. It also
+    # wouldn't have been enough on its own: that uploaded asset is a slim
+    # deploy kit (deploy.sh, bin/, nginx.conf) with no frontend/ or backend/
+    # — everything the build steps below need. What actually has full
+    # source is GitHub's own auto-generated tag archive, which needs only
+    # the tag name, not a guessed asset filename.
+    LATEST_TAG="$(curl -fsSL "https://api.github.com/repos/sushilkumarsahani41/SharkShell/releases/latest" \
+        | grep -o '"tag_name": *"[^"]*"' \
+        | cut -d'"' -f4)"
+    [ -n "$LATEST_TAG" ] || die "could not resolve the latest release tag from the GitHub API — check network or deploy from a local clone"
+    SRC_TARBALL_URL="https://github.com/sushilkumarsahani41/SharkShell/archive/refs/tags/${LATEST_TAG}.tar.gz"
+    if ! curl -fsSL "$SRC_TARBALL_URL" -o "$TMP_TAR"; then
+        die "failed to download source tarball ($SRC_TARBALL_URL) — check network or deploy from a local clone"
     fi
     tar -xzf "$TMP_TAR" -C "$TMP_EXTRACT"
     rm -rf "$REPO_DIR"
@@ -199,11 +212,17 @@ NODE_MAX_OLD_SPACE_MB=512
 # JWT_SECRET=
 # ENCRYPTION_KEY=
 EOF
-    chmod 600 "$ENV_FILE"
     log "Created $ENV_FILE"
 else
     log "Keeping existing $ENV_FILE"
 fi
+# run.sh sources this file while running as $RUN_USER (see the service
+# definition below), so root-only 600 leaves the backend unable to read its
+# own config — it crash-loops on "Permission denied" and never starts.
+# Applied unconditionally (not just on first create) so re-running this
+# script also repairs an install that already hit that bug.
+chown root:"$RUN_USER" "$ENV_FILE"
+chmod 640 "$ENV_FILE"
 
 # Source config for the rest of the install
 set -a; . "$ENV_FILE"; set +a
@@ -223,7 +242,12 @@ gen_secret() {
     local f="$SECRETS_DIR/$1"
     if [ ! -f "$f" ]; then
         openssl rand -hex 32 > "$f"
-        chmod 600 "$f"
+        # Same bug as the env file: this runs as root, so the new file is
+        # root:root regardless of SECRETS_DIR's own ownership — run.sh's
+        # load_or_gen then hits "Permission denied" reading it as $RUN_USER
+        # and the backend crash-loops before ever printing a real log line.
+        chown root:"$RUN_USER" "$f"
+        chmod 640 "$f"
         log "Generated secrets/$1"
     fi
 }
@@ -319,8 +343,15 @@ fi
 
 # ── 8. nginx ─────────────────────────────────────────────────
 log "Configuring nginx..."
-NGINX_BODY="$(sed -e "s|^root /app/public;|root $APP_DIR/public;|" \
-                  -e "s|^client_max_body_size .*;|client_max_body_size ${MAX_UPLOAD_GB}G;|" \
+# Neither pattern used to match: nginx.conf indents both lines four spaces,
+# but both were anchored on `^` (line must *start* with the pattern) — so
+# root stayed hardcoded to /app/public (a path that only exists inside the
+# Docker image; nginx 500s serving from it on every script-based install)
+# and client_max_body_size stayed hardcoded to nginx.conf's own default
+# regardless of MAX_UPLOAD_GB. Dropping the anchors is enough: both patterns
+# are distinctive full-directive text that only appears once in the file.
+NGINX_BODY="$(sed -e "s|root /app/public;|root $APP_DIR/public;|" \
+                  -e "s|client_max_body_size .*;|client_max_body_size ${MAX_UPLOAD_GB}G;|" \
                   "$REPO_DIR/nginx.conf")"
 case "$DISTRO" in
     debian)
@@ -374,7 +405,7 @@ fi
 nginx -t
 if [ "$SVC_MGR" = systemd ]; then
     systemctl enable nginx >/dev/null
-    systemctl reload-or-start nginx
+    systemctl reload-or-restart nginx
 else
     rc-service nginx reload 2>/dev/null || rc-service nginx start
 fi
