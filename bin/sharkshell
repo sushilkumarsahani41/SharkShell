@@ -102,12 +102,29 @@ cmd_db() {
 cmd_update() {
     [ "$(id -u)" -eq 0 ] || die "update needs root: sudo sharkshell update"
     local src
-    src="$(cat "$ENV_DIR/src.path" 2>/dev/null)" || die "source path not recorded ($ENV_DIR/src.path)"
-    [ -d "$src/.git" ] || die "source directory $src is not a git repo"
-    echo "Pulling latest from git in $src..."
-    (cd "$src" && git pull --ff-only)
-    echo "Rebuilding + restarting (deploy.sh)..."
-    bash "$src/deploy.sh"
+    src="$(cat "$ENV_DIR/src.path" 2>/dev/null)" || true
+
+    if [ -n "$src" ] && [ -d "$src/.git" ]; then
+        echo "Pulling latest from git in $src..."
+        (cd "$src" && git pull --ff-only)
+        echo "Rebuilding + restarting (deploy.sh)..."
+        bash "$src/deploy.sh"
+    elif [ -n "$src" ] && [ -f "$src/deploy.sh" ]; then
+        echo "Downloading latest source tarball..."
+        rm -rf "$src"
+        mkdir -p "$src"
+        curl -fsSL "https://github.com/sushilkumarsahani41/SharkShell/releases/latest/download/sharkshell-src.tar.gz" \
+            | tar -xz --strip-components=1 -C "$src"
+        echo "Rebuilding + restarting (deploy.sh)..."
+        bash "$src/deploy.sh"
+    else
+        echo "Downloading latest source tarball to $APP_DIR-src..."
+        mkdir -p "$APP_DIR-src"
+        curl -fsSL "https://github.com/sushilkumarsahani41/SharkShell/releases/latest/download/sharkshell-src.tar.gz" \
+            | tar -xz --strip-components=1 -C "$APP_DIR-src"
+        echo "Rebuilding + restarting (deploy.sh)..."
+        bash "$APP_DIR-src/deploy.sh"
+    fi
 }
 
 cmd_uninstall() {

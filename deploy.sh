@@ -30,7 +30,6 @@ LOG_DIR="$DATA_DIR/logs"
 SERVICE="sharkshell"
 RUN_USER="sharkshell"
 HEALTH_URL="http://127.0.0.1/api/auth/setup-status"
-GIT_REPO="https://github.com/sushilkumarsahani41/SharkShell.git"
 
 log() { printf '\033[1;34m[sharkshell]\033[0m %s\n' "$*"; }
 die() { printf '\033[1;31m[sharkshell] ERROR:\033[0m %s\n' "$*" >&2; exit 1; }
@@ -38,7 +37,7 @@ die() { printf '\033[1;31m[sharkshell] ERROR:\033[0m %s\n' "$*" >&2; exit 1; }
 [ "$(id -u)" -eq 0 ] || die "run as root: sudo ./deploy.sh"
 
 # ── 0. Locate source ─────────────────────────────────────────
-# Priority: next to this script → recorded src.path → git clone.
+# Priority: next to this script → recorded src.path → tarball from GitHub.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR=""
 if [ -f "$SCRIPT_DIR/backend/package.json" ] && [ -f "$SCRIPT_DIR/frontend/package.json" ]; then
@@ -47,22 +46,20 @@ elif [ -f "$ENV_DIR/src.path" ] && [ -f "$(cat "$ENV_DIR/src.path")/backend/pack
     REPO_DIR="$(cat "$ENV_DIR/src.path")"
 fi
 if [ -z "$REPO_DIR" ]; then
-    log "No local source found — cloning from GitHub..."
-    command -v git >/dev/null 2>&1 || {
-        . /etc/os-release
-        case "${ID:-}" in
-            debian|ubuntu) apt-get update -qq && apt-get install -y -qq git >/dev/null ;;
-            alpine)        apk add --no-cache git ;;
-            *) die "git not found and distro unsupported — install git and re-run" ;;
-        esac
-    }
+    log "No local source found — downloading latest release tarball..."
     REPO_DIR="/opt/sharkshell-src"
-    if [ -d "$REPO_DIR/.git" ]; then
-        (cd "$REPO_DIR" && git pull --ff-only)
-    else
-        rm -rf "$REPO_DIR"
-        git clone --depth 1 "$GIT_REPO" "$REPO_DIR"
+    TMP_TAR="$(mktemp /tmp/sharkshell-src.XXXXXX.tar.gz)"
+    TMP_EXTRACT="$(mktemp -d /tmp/sharkshell-extract.XXXXXX)"
+    trap 'rm -rf "$TMP_TAR" "$TMP_EXTRACT"' EXIT
+    if ! curl -fsSL "https://github.com/sushilkumarsahani41/SharkShell/releases/latest/download/sharkshell-src.tar.gz" -o "$TMP_TAR"; then
+        die "failed to download source tarball — check network or deploy from a local clone"
     fi
+    tar -xzf "$TMP_TAR" -C "$TMP_EXTRACT"
+    rm -rf "$REPO_DIR"
+    mkdir -p "$REPO_DIR"
+    # tarball extracts to a single top-level directory
+    EXTRACTED_DIR="$(find "$TMP_EXTRACT" -mindepth 1 -maxdepth 1 -type d | head -1)"
+    cp -a "$EXTRACTED_DIR/." "$REPO_DIR/"
     log "Source ready at $REPO_DIR"
 else
     log "Using source at $REPO_DIR"
@@ -81,7 +78,7 @@ log "Detected: ${PRETTY_NAME}"
 if [ "$DISTRO" = debian ]; then
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -qq
-    apt-get install -y -qq curl ca-certificates git nginx postgresql postgresql-client logrotate >/dev/null
+    apt-get install -y -qq curl ca-certificates nginx postgresql postgresql-client logrotate >/dev/null
     if ! command -v node >/dev/null 2>&1; then
         log "Installing Node.js 20 (NodeSource)..."
         curl -fsSL https://deb.nodesource.com/setup_20.x | bash - >/dev/null
@@ -89,7 +86,7 @@ if [ "$DISTRO" = debian ]; then
     fi
 else
     log "Installing packages (apk)..."
-    apk add --no-cache nodejs npm nginx postgresql postgresql-client logrotate su-exec curl git
+    apk add --no-cache nodejs npm nginx postgresql postgresql-client logrotate su-exec curl
 fi
 command -v node  >/dev/null 2>&1 || die "node not found after install"
 command -v nginx >/dev/null 2>&1 || die "nginx not found after install"

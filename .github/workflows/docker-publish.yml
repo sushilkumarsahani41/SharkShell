@@ -67,7 +67,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Package script-based deploy bundle
+      - name: Package script-based deploy bundles
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           mkdir -p sharkshell-"$VERSION"/bin
@@ -76,7 +76,12 @@ jobs:
           cp bin/run.sh bin/sharkshell sharkshell-"$VERSION"/bin/
           cp README.md LICENSE sharkshell-"$VERSION"/ 2>/dev/null || true
           tar -czf sharkshell-deploy-"$VERSION".tar.gz sharkshell-"$VERSION"
-          echo "Bundle: sharkshell-deploy-$VERSION.tar.gz"
+          tar -czf sharkshell-src.tar.gz \
+            --exclude='.git' --exclude='node_modules' --exclude='dist' \
+            --exclude='.claude' --exclude='.github/hooks' --exclude='.github/skills' \
+            --exclude='landing/screenshots' \
+            backend frontend bin deploy.sh install.sh nginx.conf README.md LICENSE
+          echo "Bundles: sharkshell-deploy-$VERSION.tar.gz, sharkshell-src.tar.gz"
 
       - name: Write release notes
         run: |
@@ -101,18 +106,18 @@ jobs:
 
           ---
 
-            **Script-based deploy (LXC / VPS / bare metal, no Docker):**
-            Supports Debian/Ubuntu (systemd) and Alpine (OpenRC), x86_64 + arm64. One command:
-            ```bash
-            curl -fsSL https://raw.githubusercontent.com/sushilkumarsahani41/SharkShell/main/install.sh | sudo bash
-            ```
-            Or from this release bundle:
-            ```bash
-            curl -fsSL https://github.com/sushilkumarsahani41/SharkShell/releases/latest/download/sharkshell-deploy-${VERSION}.tar.gz \\
-              | tar -xz && cd sharkshell-* && sudo ./deploy.sh
-            ```
-            Manage it with \`sharkshell status | logs | db | restart | update | uninstall\`.
-            EOF
+          **Script-based deploy (LXC / VPS / bare metal, no Docker):**
+          Supports Debian/Ubuntu (systemd) and Alpine (OpenRC), x86_64 + arm64. One command:
+          \`\`\`bash
+          curl -fsSL https://raw.githubusercontent.com/sushilkumarsahani41/SharkShell/main/install.sh | sudo bash
+          \`\`\`
+          Or from this release bundle:
+          \`\`\`bash
+          curl -fsSL https://github.com/sushilkumarsahani41/SharkShell/releases/latest/download/sharkshell-deploy-${VERSION}.tar.gz \\
+            | tar -xz && cd sharkshell-* && sudo ./deploy.sh
+          \`\`\`
+          Manage it with \`sharkshell status | logs | db | restart | update | uninstall\`.
+          EOF
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
@@ -121,6 +126,7 @@ jobs:
           generate_release_notes: true
           files: |
             sharkshell-deploy-*.tar.gz
+            sharkshell-src.tar.gz
           body_path: RELEASE_NOTES.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
