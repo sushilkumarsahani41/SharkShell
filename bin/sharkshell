@@ -1,0 +1,191 @@
+#!/usr/bin/env bash
+# ─────────────────────────────────────────────────────────────
+# sharkshell — manage the script-based SharkShell deployment
+#
+#   sharkshell status              service + health overview
+#   sharkshell start|stop|restart  control the backend service
+#   sharkshell logs [N]            tail the last N lines (default 100)
+#   sharkshell env                 show config (secrets masked)
+#   sharkshell db                  open a psql shell to the database
+#   sharkshell update              git pull + rebuild + restart
+#   sharkshell uninstall [--force] remove the deployment entirely
+# ─────────────────────────────────────────────────────────────
+set -euo pipefail
+
+APP_DIR="/opt/sharkshell"
+DATA_DIR="/var/lib/sharkshell"
+ENV_DIR="/etc/sharkshell"
+ENV_FILE="$ENV_DIR/env"
+SECRETS_DIR="$DATA_DIR/secrets"
+LOG_DIR="$DATA_DIR/logs"
+LOG_FILE="$LOG_DIR/backend.log"
+SERVICE="sharkshell"
+
+has() { command -v "$1" >/dev/null 2>&1; }
+die() { printf '\033[1;31m[sharkshell] ERROR:\033[0m %s\n' "$*" >&2; exit 1; }
+
+using_systemd() { has systemctl && [ -d /run/system/system ]; }
+using_openrc()  { has rc-service; }
+[ -f "$APP_DIR/run.sh" ] || die "no deployment found at $APP_DIR (run deploy.sh first)"
+
+load_env() {
+    if [ -f "$ENV_FILE" ]; then
+        set -a; . "$ENV_FILE"; set +a
+    fi
+    : "${PORT:=3002}"
+}
+
+svc_action() {
+    case "$1" in
+        start)
+            if using_systemd; then systemctl start "$SERVICE"
+            elif using_openrc; then rc-service "$SERVICE" start
+            else die "no systemd or OpenRC found"; fi ;;
+        stop)
+            if using_systemd; then systemctl stop "$SERVICE"
+            elif using_openrc; then rc-service "$SERVICE" stop
+            else die "no systemd or OpenRC found"; fi ;;
+        restart)
+            if using_systemd; then systemctl restart "$SERVICE"
+            elif using_openrc; then rc-service "$SERVICE" restart
+            else die "no systemd or OpenRC found"; fi ;;
+        is-active)
+            if using_systemd; then systemctl is-active "$SERVICE" 2>/dev/null || echo "inactive"
+            elif using_openrc; then rc-service "$SERVICE" status >/dev/null 2>&1 && echo "started" || echo "stopped"
+            else echo "unknown"; fi ;;
+    esac
+}
+
+cmd_status() {
+    load_env
+    local state health
+    state="$(svc_action is-active)"
+    if curl -fsS "http://127.0.0.1${API_HEALTH_PATH:-/api/auth/setup-status}" >/dev/null 2>&1; then
+        health="healthy ✅"
+    else
+        health="unhealthy ❌"
+    fi
+    echo "service:  $SERVICE ($state)"
+    echo "health:   $health"
+    echo "backend:  127.0.0.1:$PORT"
+    echo "nginx:    :80"
+    if [ -d "$APP_DIR/backend" ]; then
+        echo "version:  $(node -p "require('$APP_DIR/backend/package.json').version" 2>/dev/null || echo '?')"
+    fi
+    echo "log:      $LOG_FILE"
+    [ "$state" = "inactive" ] && [ "$health" = "unhealthy ❌" ] && exit 1 || true
+}
+
+cmd_logs() {
+    local lines="${1:-100}"
+    [ -f "$LOG_FILE" ] || die "no log file yet at $LOG_FILE"
+    tail -n "$lines" -f "$LOG_FILE"
+}
+
+cmd_env() {
+    [ -f "$ENV_FILE" ] || die "$ENV_FILE not found"
+    sed -E 's/^(DB_PASSWORD|JWT_SECRET|ENCRYPTION_KEY)=.*/\1=***masked***/' "$ENV_FILE" | grep -vE '^\s*#' || true
+}
+
+cmd_db() {
+    load_env
+    local db_host="${DB_HOST:-127.0.0.1}" db_port="${DB_PORT:-5432}" db_user="${DB_USER:-sharkshell}" db_name="${DB_NAME:-sharkshell}" db_pass=""
+    if [ -z "${DB_HOST:-}" ]; then
+        db_pass="$(cat "$SECRETS_DIR/db_password" 2>/dev/null)" || die "built-in DB password not found in $SECRETS_DIR"
+    else
+        db_pass="${DB_PASSWORD:-}"
+    fi
+    has psql || die "psql not found on this system"
+    PGPASSWORD="$db_pass" exec psql -h "$db_host" -p "$db_port" -U "$db_user" -d "$db_name"
+}
+
+cmd_update() {
+    [ "$(id -u)" -eq 0 ] || die "update needs root: sudo sharkshell update"
+    local src
+    src="$(cat "$ENV_DIR/src.path" 2>/dev/null)" || die "source path not recorded ($ENV_DIR/src.path)"
+    [ -d "$src/.git" ] || die "source directory $src is not a git repo"
+    echo "Pulling latest from git in $src..."
+    (cd "$src" && git pull --ff-only)
+    echo "Rebuilding + restarting (deploy.sh)..."
+    bash "$src/deploy.sh"
+}
+
+cmd_uninstall() {
+    [ "$(id -u)" -eq 0 ] || die "uninstall needs root: sudo sharkshell uninstall --force"
+    if [ "${1:-}" != "--force" ]; then
+        echo "This will remove:"
+        echo "  - service definition (systemd unit or OpenRC script)"
+        echo "  - nginx config + site"
+        echo "  - $APP_DIR (runtime)"
+        echo "  - $ENV_DIR (config)"
+        echo "  - $DATA_DIR (secrets + logs)"
+        echo "  - built-in PostgreSQL database/role 'sharkshell' (if internal DB)"
+        echo "  - user '$SERVICE'"
+        echo "  NOTE: the git source repo and external DBs are NOT touched."
+        echo ""
+        echo "Re-run with: sharkshell uninstall --force"
+        exit 1
+    fi
+    load_env || true
+
+    echo "Stopping service..."
+    svc_action stop 2>/dev/null || true
+
+    echo "Removing service definition..."
+    if [ -f /etc/systemd/system/sharkshell.service ]; then
+        systemctl disable sharkshell 2>/dev/null || true
+        rm -f /etc/systemd/system/sharkshell.service
+        systemctl daemon-reload
+    fi
+    if [ -f /etc/init.d/sharkshell ]; then
+        rc-update del sharkshell default 2>/dev/null || true
+        rm -f /etc/init.d/sharkshell
+    fi
+
+    echo "Removing nginx config..."
+    rm -f /etc/nginx/sites-enabled/sharkshell.conf /etc/nginx/sites-available/sharkshell.conf \
+          /etc/nginx/http.d/sharkshell.conf
+    nginx -t 2>/dev/null && (using_systemd && systemctl reload nginx || rc-service nginx reload 2>/dev/null || true) || true
+
+    echo "Removing logrotate config..."
+    rm -f /etc/logrotate.d/sharkshell
+
+    if [ -z "${DB_HOST:-}" ] && has psql; then
+        echo "Dropping built-in database/role 'sharkshell'..."
+        if using_systemd; then
+            su -s /bin/sh postgres -c "psql -tAc 'DROP DATABASE IF EXISTS sharkshell'" 2>/dev/null || true
+            su -s /bin/sh postgres -c "psql -tAc 'DROP ROLE IF EXISTS sharkshell'" 2>/dev/null || true
+        elif has su-exec; then
+            su-exec postgres psql -tAc 'DROP DATABASE IF EXISTS sharkshell' 2>/dev/null || true
+            su-exec postgres psql -tAc 'DROP ROLE IF EXISTS sharkshell' 2>/dev/null || true
+        fi
+    fi
+
+    echo "Removing directories..."
+    rm -rf "$APP_DIR" "$ENV_DIR" "$DATA_DIR"
+
+    if id "$SERVICE" >/dev/null 2>&1; then
+        echo "Removing user '$SERVICE'..."
+        userdel -r "$SERVICE" 2>/dev/null || userdel "$SERVICE" 2>/dev/null || true
+    fi
+
+    echo "✅ SharkShell uninstalled. Git source repo and external DB were untouched."
+}
+
+usage() {
+    sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'
+    exit 1
+}
+
+case "${1:-}" in
+    status)    cmd_status ;;
+    start)     [ "$(id -u)" -eq 0 ] || die "needs root"; svc_action start ;;
+    stop)      [ "$(id -u)" -eq 0 ] || die "needs root"; svc_action stop ;;
+    restart)   [ "$(id -u)" -eq 0 ] || die "needs root"; svc_action restart ;;
+    logs)      cmd_logs "${2:-100}" ;;
+    env)       cmd_env ;;
+    db)        cmd_db ;;
+    update)    cmd_update ;;
+    uninstall) cmd_uninstall "${2:-}" ;;
+    *)         usage ;;
+esac

@@ -66,20 +66,34 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Package script-based deploy bundle
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          mkdir -p sharkshell-"$VERSION"/bin
+          cp deploy.sh sharkshell-"$VERSION"/
+          cp nginx.conf sharkshell-"$VERSION"/
+          cp bin/run.sh bin/sharkshell sharkshell-"$VERSION"/bin/
+          cp README.md LICENSE sharkshell-"$VERSION"/ 2>/dev/null || true
+          tar -czf sharkshell-deploy-"$VERSION".tar.gz sharkshell-"$VERSION"
+          echo "Bundle: sharkshell-deploy-$VERSION.tar.gz"
+
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
+          files: |
+            sharkshell-deploy-*.tar.gz
           body: |
             ## 🦈 SharkShell
 
-            **Zero-config deploy:**
+            **Docker — zero-config deploy:**
             ```bash
             docker run -d -p 8080:80 greatsharktech/sharkshell:latest
             ```
 
-            **With your own database:**
+            **Docker — with your own database:**
             ```bash
             docker run -d -p 8080:80 \
               -e DB_HOST=your_db_host \
@@ -88,5 +102,19 @@ jobs:
               -e DB_NAME=sharkshell \
               greatsharktech/sharkshell:latest
             ```
+
+            ---
+
+            **Script-based deploy (LXC / VPS / bare metal, no Docker):**
+            Supports Debian/Ubuntu (systemd) and Alpine (OpenRC), x86_64 + arm64.
+            ```bash
+            curl -fsSL -o sharkshell.tar.gz https://github.com/sushilkumarsahani41/SharkShell/releases/latest/download/sharkshell-deploy-VERSION.tar.gz
+            tar -xzf sharkshell.tar.gz && cd sharkshell-* && sudo ./deploy.sh
+            ```
+            Or from source:
+            ```bash
+            git clone https://github.com/sushilkumarsahani41/SharkShell.git && cd SharkShell && sudo ./deploy.sh
+            ```
+            Manage it with `sharkshell status | logs | db | restart | update | uninstall`.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

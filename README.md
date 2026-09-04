@@ -107,6 +107,50 @@ docker run -d \
 
 > **Data Persistence:** All data lives in named Docker volumes (`sharkshell-pgdata`, `sharkshell-secrets`). Both `docker run` and `docker compose` use the same volume names, so you can switch between the two without losing anything.
 
+---
+
+### Script-Based Deploy (LXC / VPS / Bare Metal — No Docker)
+
+For low-resource environments (Proxmox LXC containers, small VPS, Raspberry Pi), deploy directly with a bash script. **No Docker daemon, no image pulls, no container overhead** — just Node.js, nginx, and PostgreSQL.
+
+Supported: **Debian / Ubuntu** (apt + systemd) and **Alpine** (apk + OpenRC), x86_64 and arm64.
+
+```bash
+git clone https://github.com/sushilkumarsahani41/SharkShell.git
+cd SharkShell
+sudo ./deploy.sh
+```
+
+The script:
+
+1. Installs Node.js 20, nginx, PostgreSQL, logrotate
+2. Builds the frontend (Vite) and backend (Nest) on the server
+3. Creates a system user `sharkshell` + persistent directories
+4. Auto-generates and persists secrets (JWT, encryption key, DB password)
+5. Sets up the built-in PostgreSQL (localhost-only, low-resource tuning) — or your external DB if configured
+6. Configures nginx (UI on :80, `/api/` proxy, WebSockets, upload ceiling)
+7. Installs and enables the service (systemd on Debian/Ubuntu, OpenRC on Alpine)
+8. Waits for the health endpoint, then prints next steps
+
+Open **http://server-ip** and complete the first-time admin setup.
+
+**Day-to-day management:**
+
+```bash
+sharkshell status      # service + health overview
+sharkshell logs        # tail the backend log
+sharkshell db          # open a psql shell
+sharkshell restart     # restart the backend
+sharkshell update      # git pull + rebuild + restart
+sharkshell uninstall   # remove everything (--force)
+```
+
+**Configuration** lives in `/etc/sharkshell/env` (same `DB_*`, `APP_URL`, `MAX_UPLOAD_GB` variables as Docker). Secrets persist in `/var/lib/sharkshell/secrets/`.
+
+**Low-resource defaults:** Node heap capped at 512 MB (`NODE_MAX_OLD_SPACE_MB`), PostgreSQL tuned for small machines (`shared_buffers=128MB`, `max_connections=50`). Adjust in `/etc/sharkshell/env` and the distro's PostgreSQL conf.
+
+**Requirements:** ~512 MB RAM for runtime (~1.5 GB during the build), ~1 GB disk.
+
 ## ⚙️ Configuration
 
 All settings are optional — SharkShell auto-generates secure defaults if not provided.
