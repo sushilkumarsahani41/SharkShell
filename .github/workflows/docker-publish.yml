@@ -78,6 +78,42 @@ jobs:
           tar -czf sharkshell-deploy-"$VERSION".tar.gz sharkshell-"$VERSION"
           echo "Bundle: sharkshell-deploy-$VERSION.tar.gz"
 
+      - name: Write release notes
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          cat > RELEASE_NOTES.md <<EOF
+          ## 🦈 SharkShell
+
+          **Docker — zero-config deploy:**
+          \`\`\`bash
+          docker run -d -p 8080:80 greatsharktech/sharkshell:latest
+          \`\`\`
+
+          **Docker — with your own database:**
+          \`\`\`bash
+          docker run -d -p 8080:80 \\
+            -e DB_HOST=your_db_host \\
+            -e DB_USER=your_db_user \\
+            -e DB_PASSWORD=your_db_pass \\
+            -e DB_NAME=sharkshell \\
+            greatsharktech/sharkshell:latest
+          \`\`\`
+
+          ---
+
+          **Script-based deploy (LXC / VPS / bare metal, no Docker):**
+          Supports Debian/Ubuntu (systemd) and Alpine (OpenRC), x86_64 + arm64. One command:
+          \`\`\`bash
+          curl -fsSL https://github.com/sushilkumarsahani41/SharkShell/releases/latest/download/sharkshell-deploy-${VERSION}.tar.gz \\
+            | tar -xz && cd sharkshell-* && sudo ./deploy.sh
+          \`\`\`
+          Or from source:
+          \`\`\`bash
+          git clone https://github.com/sushilkumarsahani41/SharkShell.git && cd SharkShell && sudo ./deploy.sh
+          \`\`\`
+          Manage it with \`sharkshell status | logs | db | restart | update | uninstall\`.
+          EOF
+
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
@@ -85,36 +121,6 @@ jobs:
           generate_release_notes: true
           files: |
             sharkshell-deploy-*.tar.gz
-          body: |
-            ## 🦈 SharkShell
-
-            **Docker — zero-config deploy:**
-            ```bash
-            docker run -d -p 8080:80 greatsharktech/sharkshell:latest
-            ```
-
-            **Docker — with your own database:**
-            ```bash
-            docker run -d -p 8080:80 \
-              -e DB_HOST=your_db_host \
-              -e DB_USER=your_db_user \
-              -e DB_PASSWORD=your_db_pass \
-              -e DB_NAME=sharkshell \
-              greatsharktech/sharkshell:latest
-            ```
-
-            ---
-
-            **Script-based deploy (LXC / VPS / bare metal, no Docker):**
-            Supports Debian/Ubuntu (systemd) and Alpine (OpenRC), x86_64 + arm64.
-            ```bash
-            curl -fsSL -o sharkshell.tar.gz https://github.com/sushilkumarsahani41/SharkShell/releases/latest/download/sharkshell-deploy-VERSION.tar.gz
-            tar -xzf sharkshell.tar.gz && cd sharkshell-* && sudo ./deploy.sh
-            ```
-            Or from source:
-            ```bash
-            git clone https://github.com/sushilkumarsahani41/SharkShell.git && cd SharkShell && sudo ./deploy.sh
-            ```
-            Manage it with `sharkshell status | logs | db | restart | update | uninstall`.
+          body_path: RELEASE_NOTES.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SharkShell — Self-Hosted Web SSH Client with MCP, 2FA &amp; Team Orgs</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
-    <meta name="description" content="SharkShell is a self-hosted web SSH terminal with encrypted keystore, multi-user organizations, TOTP 2FA, terminal scrollback restore, and a built-in MCP server so AI assistants can manage your servers. Deploy with one Docker command.">
-    <meta name="keywords" content="SSH, web SSH client, self-hosted, terminal, keystore, SSH key management, Docker, MCP server, two-factor authentication, team SSH">
+    <meta name="description" content="SharkShell is a self-hosted web SSH terminal with encrypted keystore, multi-user organizations, TOTP 2FA, terminal scrollback restore, and a built-in MCP server so AI assistants can manage your servers. Deploy with one Docker command or one bash script on any LXC/VPS.">
+    <meta name="keywords" content="SSH, web SSH client, self-hosted, terminal, keystore, SSH key management, Docker, MCP server, two-factor authentication, team SSH, LXC deployment, Proxmox">
     <link rel="canonical" href="https://sharkshell.in/">
 
     <!-- Open Graph -->
@@ -33,7 +33,7 @@
       "operatingSystem": "Docker, Linux",
       "description": "Self-hosted web SSH terminal and keystore manager with multi-user organizations, TOTP 2FA, and a built-in MCP server for AI assistants.",
       "url": "https://sharkshell.in/",
-      "softwareVersion": "2.0.0",
+      "softwareVersion": "2.3.0",
       "license": "https://www.gnu.org/licenses/agpl-3.0.html",
       "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
       "author": { "@type": "Organization", "name": "Greatshark Technologies", "url": "https://greatshark.in" }
@@ -87,8 +87,8 @@
         <div class="hero-fade" aria-hidden="true"></div>
         <div class="hero-container">
             <a class="hero-badge" href="https://github.com/sushilkumarsahani41/SharkShell/releases" target="_blank" rel="noopener" data-track="hero_release_badge">
-                <span class="badge-ver">v2.0</span>
-                Multi-user orgs · TOTP 2FA · MCP for AI assistants
+                <span class="badge-ver">v2.3</span>
+                Script-based deploy for LXC · MCP for AI assistants
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
             </a>
             <h1 class="hero-title">
@@ -97,7 +97,8 @@
             <p class="hero-subtitle">
                 SharkShell is a self-hosted web SSH client with an encrypted keystore, team
                 organizations, two-factor auth, and a built-in MCP server, so both your team
-                <em>and</em> your AI assistants can manage your servers. One Docker command to deploy.
+                <em>and</em> your AI assistants can manage your servers. One Docker command — or
+                one bash script on any Debian, Ubuntu, or Alpine box.
             </p>
             <div class="hero-actions">
                 <a href="#quickstart" class="btn btn-primary btn-lg" data-track="hero_get_started" data-cta="get_started">
@@ -109,11 +110,15 @@
                     Star on GitHub
                 </a>
             </div>
-            <div class="hero-code">
+            <div class="hero-code" id="heroCode">
                 <div class="code-header">
                     <div class="code-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+                    <div class="deploy-tabs" role="tablist" aria-label="Deploy method">
+                        <button class="deploy-tab active" data-deploy="docker" role="tab" aria-selected="true">docker</button>
+                        <button class="deploy-tab" data-deploy="script" role="tab" aria-selected="false">script</button>
+                    </div>
                     <span class="code-label">quick deploy</span>
-                    <button class="code-copy" data-copy-target="heroCmd" data-copy-id="hero_docker_run" title="Copy command" aria-label="Copy command">
+                    <button class="code-copy" data-copy-target="heroCmd" data-copy-id="hero_deploy_cmd" title="Copy command" aria-label="Copy command">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
                     </button>
                 </div>
@@ -122,7 +127,7 @@
             <div class="hero-trust">
                 <span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>100% self-hosted: your keys never leave your box</span>
                 <span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/></svg>Open source · AGPL v3</span>
-                <span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M17 7V5a2 2 0 00-2-2H9a2 2 0 00-2 2v2"/></svg>Single Docker image</span>
+                <span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M17 7V5a2 2 0 00-2-2H9a2 2 0 00-2 2v2"/></svg>Docker, LXC, or bare metal</span>
             </div>
         </div>
         <div class="hero-screenshot">
@@ -192,6 +197,12 @@
                     <h3>Host &amp; key groups</h3>
                     <p>Color-coded groups for staging, prod, and everything in between. Connect an entire group at once.</p>
                 </article>
+
+                <article class="bento-cell bento-deploy" id="deploy">
+                    <span class="new-chip">New in 2.3</span>
+                    <h3>Runs where Docker can't</h3>
+                    <p>Script-based deploy for LXC containers, Proxmox, tiny VPS, and Raspberry Pi. No daemon, no image pulls — just Node.js, nginx, and PostgreSQL on Debian, Ubuntu, or Alpine. ~512 MB RAM at runtime.</p>
+                </article>
             </div>
         </div>
     </section>
@@ -235,8 +246,8 @@
         <div class="section-container">
             <div class="section-header">
                 <p class="section-prompt" aria-hidden="true">~/architecture <span class="cursor">▊</span></p>
-                <h2>One container, real stack</h2>
-                <p class="section-sub">React 18 + NestJS 10 + PostgreSQL 16, streamed over Socket.IO into xterm.js.</p>
+                <h2>One box, real stack</h2>
+                <p class="section-sub">React 18 + NestJS 10 + PostgreSQL 16, streamed over Socket.IO into xterm.js. Containerized or bare metal — same stack, your choice.</p>
             </div>
             <div class="arch-layout">
                 <div class="arch-diagram">
@@ -264,7 +275,7 @@
                     <li><strong>NestJS 10</strong><span>API, SSH proxy, auth, crypto, and the MCP server</span></li>
                     <li><strong>PostgreSQL 16</strong><span>Bring your own database or use the bundled one</span></li>
                     <li><strong>Socket.IO</strong><span>Real-time terminal streaming over WebSockets</span></li>
-                    <li><strong>Docker</strong><span>Single image, non-root user, one command to run</span></li>
+                    <li><strong>Docker or script</strong><span>Single image, or deploy.sh for LXC/VPS/bare metal — non-root, one command</span></li>
                 </ul>
             </div>
         </div>
@@ -316,76 +327,133 @@
                 <p class="section-sub">One command. Secure defaults are auto-generated.</p>
             </div>
             <div class="quickstart-content">
-                <div class="qs-step">
-                    <div class="qs-number">1</div>
-                    <div class="qs-info">
-                        <h3>Recommended: Docker Compose</h3>
-                        <p>Download the compose file, run the init script, and start.</p>
-                        <div class="code-block">
-                            <div class="code-header">
-                                <div class="code-dots" aria-hidden="true"><span></span><span></span><span></span></div>
-                                <span class="code-label">terminal</span>
-                                <button class="code-copy" data-copy-target="cmd1" data-copy-id="compose_setup" title="Copy" aria-label="Copy command">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-                                </button>
-                            </div>
-                            <pre><code id="cmd1"><span class="code-comment"># Download</span>
-curl -sO https://raw.githubusercontent.com/sushilkumarsahani41/SharkShell/main/docker-compose.prod.yml
-curl -sO https://raw.githubusercontent.com/sushilkumarsahani41/SharkShell/main/init.sh
-chmod +x init.sh
+                <div class="qs-method-toggle" role="tablist" aria-label="Deployment method">
+                    <button class="qs-method-btn active" data-method="docker" role="tab" aria-selected="true">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13.983 11.078h2.119a.186.186 0 00.186-.185V9.006a.186.186 0 00-.186-.186h-2.119a.185.185 0 00-.185.185v1.888c0 .102.083.185.185.185m-2.954-5.43h2.118a.186.186 0 00.186-.186V3.574a.186.186 0 00-.186-.185h-2.118a.185.185 0 00-.185.185v1.888c0 .102.082.185.185.185m0 2.716h2.118a.187.187 0 00.186-.186V6.29a.186.186 0 00-.186-.185h-2.118a.185.185 0 00-.185.185v1.887c0 .102.082.186.185.186m-2.93 0h2.12a.186.186 0 00.184-.186V6.29a.185.185 0 00-.185-.185H8.1a.185.185 0 00-.185.185v1.887c0 .102.083.186.185.186m-2.964 0h2.119a.186.186 0 00.185-.186V6.29a.185.185 0 00-.185-.185H5.136a.186.186 0 00-.186.185v1.887c0 .102.084.186.186.186m5.893 2.715h2.118a.186.186 0 00.186-.185V9.006a.186.186 0 00-.186-.186h-2.118a.185.185 0 00-.185.185v1.888c0 .102.082.185.185.185m-2.93 0h2.12a.185.185 0 00.184-.185V9.006a.185.185 0 00-.184-.186h-2.12a.185.185 0 00-.184.185v1.888c0 .102.083.185.185.185m-2.964 0h2.119a.185.185 0 00.185-.185V9.006a.185.185 0 00-.184-.186h-2.12a.186.186 0 00-.185.185v1.888c0 .102.084.185.186.185m-2.92 0h2.12a.185.185 0 00.184-.185V9.006a.185.185 0 00-.184-.186h-2.12a.185.185 0 00-.184.185v1.888c0 .102.082.185.185.185M23.763 9.89c-.065-.051-.672-.51-1.954-.51-.338.001-.676.03-1.01.087-.248-1.7-1.653-2.53-1.716-2.566l-.344-.199-.226.327c-.284.438-.49.922-.612 1.43-.23.97-.09 1.882.403 2.661-.595.332-1.55.413-1.744.42H.751a.751.751 0 00-.75.748 11.376 11.376 0 00.692 4.062c.545 1.428 1.355 2.48 2.41 3.124 1.18.723 3.1 1.137 5.275 1.137.983.003 1.963-.086 2.93-.266a12.248 12.248 0 003.823-1.389c.98-.567 1.86-1.288 2.61-2.136 1.252-1.418 1.998-2.997 2.553-4.4h.221c1.372 0 2.215-.549 2.68-1.009.309-.293.55-.65.707-1.046l.098-.288Z"/></svg>
+                        Docker
+                    </button>
+                    <button class="qs-method-btn" data-method="script" role="tab" aria-selected="false">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+                        Script (LXC / bare metal)
+                    </button>
+                </div>
 
-<span class="code-comment"># Setup &amp; Run</span>
-./init.sh
-docker compose -f docker-compose.prod.yml up -d</code></pre>
+                <div class="qs-method active" data-method="docker">
+                    <div class="qs-step">
+                        <div class="qs-number">1</div>
+                        <div class="qs-info">
+                            <h3>Recommended: Docker Compose</h3>
+                            <p>Download the compose file and start.</p>
+                            <div class="code-block">
+                                <div class="code-header">
+                                    <div class="code-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+                                    <span class="code-label">terminal</span>
+                                    <button class="code-copy" data-copy-target="cmd1" data-copy-id="compose_setup" title="Copy" aria-label="Copy command">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                                    </button>
+                                </div>
+                                <pre><code id="cmd1">curl -O https://raw.githubusercontent.com/sushilkumarsahani41/SharkShell/main/docker-compose.yml
+docker compose up -d</code></pre>
+                            </div>
                         </div>
                     </div>
-                </div>
-                <div class="qs-step">
-                    <div class="qs-number">2</div>
-                    <div class="qs-info">
-                        <h3>Or: Docker run with your own PostgreSQL</h3>
-                        <p>Point the standalone container at an external database.</p>
-                        <div class="code-block">
-                            <div class="code-header">
-                                <div class="code-dots" aria-hidden="true"><span></span><span></span><span></span></div>
-                                <span class="code-label">terminal</span>
-                                <button class="code-copy" data-copy-target="cmd2" data-copy-id="docker_run_byodb" title="Copy" aria-label="Copy command">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-                                </button>
-                            </div>
-                            <pre><code id="cmd2">docker run -d -p 8080:80 \
+                    <div class="qs-step">
+                        <div class="qs-number">2</div>
+                        <div class="qs-info">
+                            <h3>Or: Docker run with your own PostgreSQL</h3>
+                            <p>Point the standalone container at an external database.</p>
+                            <div class="code-block">
+                                <div class="code-header">
+                                    <div class="code-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+                                    <span class="code-label">terminal</span>
+                                    <button class="code-copy" data-copy-target="cmd2" data-copy-id="docker_run_byodb" title="Copy" aria-label="Copy command">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                                    </button>
+                                </div>
+                                <pre><code id="cmd2">docker run -d -p 8080:80 \
   -e DB_HOST=your-db-host \
   -e DB_USER=your-user \
   -e DB_PASSWORD=your-password \
   -e DB_NAME=sharkshell \
   -v sharkshell-secrets:/app/secrets \
   greatsharktech/sharkshell:latest</code></pre>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="qs-step">
+                        <div class="qs-number">3</div>
+                        <div class="qs-info">
+                            <h3>Open &amp; create your admin</h3>
+                            <p>Visit <code>http://localhost:8080</code>. The first account becomes the org admin, then registration locks itself.</p>
                         </div>
                     </div>
                 </div>
-                <div class="qs-step">
-                    <div class="qs-number">3</div>
-                    <div class="qs-info">
-                        <h3>Open &amp; create your admin</h3>
-                        <p>Visit <code>http://localhost:8080</code>. The first account becomes the org admin, then registration locks itself.</p>
+
+                <div class="qs-method" data-method="script">
+                    <div class="qs-step">
+                        <div class="qs-number">1</div>
+                        <div class="qs-info">
+                            <h3>Run the installer</h3>
+                            <p>On any <strong>Debian / Ubuntu</strong> or <strong>Alpine</strong> box — Proxmox LXC, small VPS, Raspberry Pi. Downloads the release bundle, installs Node.js, nginx, and PostgreSQL, builds the app, and wires everything up.</p>
+                            <div class="code-block">
+                                <div class="code-header">
+                                    <div class="code-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+                                    <span class="code-label">terminal — one command</span>
+                                    <button class="code-copy" data-copy-target="cmd3" data-copy-id="script_deploy" title="Copy" aria-label="Copy command">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                                    </button>
+                                </div>
+                                <pre><code id="cmd3">curl -fsSL https://github.com/sushilkumarsahani41/SharkShell/releases/latest/download/sharkshell-deploy-2.3.0.tar.gz \
+  | tar -xz &amp;&amp; cd sharkshell-* &amp;&amp; sudo ./deploy.sh</code></pre>
+                            </div>
+                            <p class="qs-alt">Prefer source? <code>git clone https://github.com/sushilkumarsahani41/SharkShell.git &amp;&amp; cd SharkShell &amp;&amp; sudo ./deploy.sh</code></p>
+                        </div>
+                    </div>
+                    <div class="qs-step">
+                        <div class="qs-number">2</div>
+                        <div class="qs-info">
+                            <h3>Manage it like a native service</h3>
+                            <p>The deploy installs a <code>sharkshell</code> CLI on top of systemd (Debian/Ubuntu) or OpenRC (Alpine).</p>
+                            <div class="code-block">
+                                <div class="code-header">
+                                    <div class="code-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+                                    <span class="code-label">terminal</span>
+                                    <button class="code-copy" data-copy-target="cmd4" data-copy-id="script_manage" title="Copy" aria-label="Copy command">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                                    </button>
+                                </div>
+                                <pre><code id="cmd4">sharkshell status     <span class="code-comment"># service + health</span>
+sharkshell logs       <span class="code-comment"># tail the backend log</span>
+sharkshell update     <span class="code-comment"># git pull + rebuild + restart</span></code></pre>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="qs-step">
+                        <div class="qs-number">3</div>
+                        <div class="qs-info">
+                            <h3>Open &amp; create your admin</h3>
+                            <p>Visit <code>http://server-ip</code> (port 80). Config lives in <code>/etc/sharkshell/env</code>, secrets in <code>/var/lib/sharkshell/secrets/</code> — both survive every update.</p>
+                        </div>
                     </div>
                 </div>
             </div>
             <div class="qs-config">
                 <h3>Configuration</h3>
-                <p>All settings are optional — SharkShell auto-generates secure defaults.</p>
+                <p>All settings are optional — SharkShell auto-generates secure defaults. Set via env vars (Docker) or <code>/etc/sharkshell/env</code> (script deploy).</p>
                 <div class="config-table-wrap">
                     <table class="config-table">
                         <thead>
                             <tr><th>Variable</th><th>Default</th><th>Description</th></tr>
                         </thead>
                         <tbody>
-                            <tr><td><code>DB_HOST</code></td><td>postgres</td><td>Database hostname</td></tr>
+                            <tr><td><code>DB_HOST</code></td><td><em>built-in</em></td><td>Database hostname (leave unset for the bundled PostgreSQL)</td></tr>
                             <tr><td><code>DB_PORT</code></td><td>5432</td><td>Database port</td></tr>
                             <tr><td><code>DB_USER</code></td><td>sharkshell</td><td>Database user</td></tr>
                             <tr><td><code>DB_PASSWORD</code></td><td><em>auto-generated</em></td><td>Strong random password</td></tr>
                             <tr><td><code>ENCRYPTION_KEY</code></td><td><em>auto-generated</em></td><td>AES-256 key (64-char hex)</td></tr>
                             <tr><td><code>JWT_SECRET</code></td><td><em>auto-generated RSA</em></td><td>RSA 2048-bit keypair</td></tr>
+                            <tr><td><code>APP_URL</code></td><td><em>auto-detected</em></td><td>Public URL — required behind a TLS proxy/tunnel for MCP/OAuth</td></tr>
+                            <tr><td><code>MAX_UPLOAD_GB</code></td><td>50</td><td>SFTP upload ceiling (nginx + backend)</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -426,6 +494,7 @@ docker compose -f docker-compose.prod.yml up -d</code></pre>
                         <a href="#mcp">MCP Access</a>
                         <a href="#screenshots">Screenshots</a>
                         <a href="#quickstart">Get Started</a>
+                        <a href="#deploy">Script Deploy</a>
                     </div>
                     <div class="footer-col">
                         <h4>Resources</h4>

@@ -9,7 +9,7 @@ const track = (name, params) => window.ssTrack && window.ssTrack(name, params);
 /* ── Scroll reveal (progressive enhancement: content is visible
       without JS; the reveal class is added only when JS runs) ── */
 const revealTargets = document.querySelectorAll(
-    '.bento-cell, .security-item, .qs-step, .arch-layout, .screenshot-viewer'
+    '.bento-cell, .security-item, .qs-method, .arch-layout, .screenshot-viewer'
 );
 if ('IntersectionObserver' in window && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
     document.body.classList.add('reveal-ready');
@@ -81,6 +81,41 @@ document.querySelectorAll('.tab-btn').forEach((btn) => {
         const frameUrl = document.getElementById('frameUrl');
         if (frameUrl) frameUrl.textContent = frameUrls[tab] || 'localhost:8080';
         track('screenshot_tab_view', { tab_name: tab });
+    });
+});
+
+/* ── Hero deploy tabs: docker vs script ── */
+const heroCmd = document.getElementById('heroCmd');
+const heroCommands = {
+    docker: '$ docker run -d -p 8080:80 greatsharktech/sharkshell:latest',
+    script: '$ git clone https://github.com/sushilkumarsahani41/SharkShell.git && cd SharkShell && sudo ./deploy.sh'
+};
+document.querySelectorAll('.deploy-tab').forEach((tab) => {
+    tab.addEventListener('click', () => {
+        const method = tab.dataset.deploy;
+        document.querySelectorAll('.deploy-tab').forEach((t) => {
+            t.classList.toggle('active', t === tab);
+            t.setAttribute('aria-selected', String(t === tab));
+        });
+        if (heroCmd) {
+            heroCmd.innerHTML = heroCommands[method].replace(/^\$ /, '<span class="prompt">$</span> ');
+        }
+        track('deploy_tab_switch', { method });
+    });
+});
+
+/* ── Quick Start method toggle (docker vs script) ── */
+document.querySelectorAll('.qs-method-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+        const method = btn.dataset.method;
+        document.querySelectorAll('.qs-method-btn').forEach((b) => {
+            b.classList.toggle('active', b === btn);
+            b.setAttribute('aria-selected', String(b === btn));
+        });
+        document.querySelectorAll('.qs-method').forEach((panel) => {
+            panel.classList.toggle('active', panel.dataset.method === method);
+        });
+        track('quickstart_method_switch', { method });
     });
 });
 

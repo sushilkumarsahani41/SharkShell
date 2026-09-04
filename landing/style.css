@@ -303,6 +303,34 @@ h1, h2, h3, h4 {
 .code-copy:hover { color: var(--ink); }
 .code-copy.copied { color: var(--green-bright); }
 
+/* Hero deploy-method tabs (docker / script) */
+.deploy-tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--bg-code);
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    padding: 3px;
+}
+.deploy-tab {
+    padding: 4px 14px;
+    border-radius: 100px;
+    background: transparent;
+    border: none;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+    transition: color 0.2s, background 0.2s;
+    line-height: 1.4;
+}
+.deploy-tab:hover { color: var(--ink); }
+.deploy-tab.active {
+    background: var(--green);
+    color: var(--green-ink);
+}
+
 .hero-code pre, .code-block pre, .cell-code pre {
     margin: 0; padding: 16px;
     font-family: var(--font-mono);
@@ -432,6 +460,13 @@ section { position: relative; z-index: var(--z-content); }
     line-height: 1.7;
 }
 .bento-wide > p { font-size: 16px; max-width: 60ch; }
+
+/* Deploy-without-Docker cell */
+.bento-deploy {
+    background: linear-gradient(160deg, rgba(34, 211, 238, 0.06), var(--bg-1) 55%);
+    border-color: rgba(34, 211, 238, 0.3);
+}
+.bento-deploy:hover { border-color: var(--cyan); }
 .cell-code {
     width: 100%;
     margin-top: auto;
@@ -592,6 +627,50 @@ section { position: relative; z-index: var(--z-content); }
 .quickstart-content {
     max-width: 800px;
     margin-bottom: 56px;
+}
+.qs-method-toggle {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 40px;
+    flex-wrap: wrap;
+}
+.qs-method-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 22px;
+    border-radius: 100px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 13.5px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: color 0.2s, border-color 0.2s, background 0.2s;
+    min-height: 44px;
+}
+.qs-method-btn:hover { border-color: var(--border-strong); color: var(--ink); }
+.qs-method-btn.active {
+    background: var(--green);
+    border-color: var(--green);
+    color: var(--green-ink);
+    font-weight: 700;
+}
+.qs-method { display: none; }
+.qs-method.active { display: block; animation: tabIn 0.35s var(--ease-out); }
+.qs-alt {
+    font-size: 13.5px;
+    color: var(--muted);
+    margin-top: 12px;
+}
+.qs-alt code {
+    background: rgba(34, 197, 94, 0.08);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12.5px;
+    color: var(--green-bright);
+    word-break: break-all;
 }
 .qs-step {
     display: flex; gap: 24px;
@@ -765,7 +844,7 @@ section { position: relative; z-index: var(--z-content); }
    JS adds .reveal-ready before observing) ═══════════ */
 .reveal-ready .bento-cell,
 .reveal-ready .security-item,
-.reveal-ready .qs-step,
+.reveal-ready .qs-method,
 .reveal-ready .arch-layout,
 .reveal-ready .screenshot-viewer {
     opacity: 0;
@@ -896,7 +975,7 @@ section { position: relative; z-index: var(--z-content); }
     .tab-image.active { animation: none; }
     .reveal-ready .bento-cell,
     .reveal-ready .security-item,
-    .reveal-ready .qs-step,
+    .reveal-ready .qs-method,
     .reveal-ready .arch-layout,
     .reveal-ready .screenshot-viewer {
         opacity: 1;
