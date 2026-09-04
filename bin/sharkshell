@@ -24,7 +24,7 @@ SERVICE="sharkshell"
 has() { command -v "$1" >/dev/null 2>&1; }
 die() { printf '\033[1;31m[sharkshell] ERROR:\033[0m %s\n' "$*" >&2; exit 1; }
 
-using_systemd() { has systemctl && [ -d /run/system/system ]; }
+using_systemd() { has systemctl && [ -d /run/systemd/system ]; }
 using_openrc()  { has rc-service; }
 [ -f "$APP_DIR/run.sh" ] || die "no deployment found at $APP_DIR (run deploy.sh first)"
 
@@ -99,9 +99,24 @@ cmd_db() {
     PGPASSWORD="$db_pass" exec psql -h "$db_host" -p "$db_port" -U "$db_user" -d "$db_name"
 }
 
+# Same fix as deploy.sh: "sharkshell-src.tar.gz" never existed as a release
+# asset (this always 404'd), and the actual uploaded asset
+# (sharkshell-deploy-X.Y.Z.tar.gz) is a slim deploy kit with no frontend/ or
+# backend/ anyway. GitHub's own auto-generated tag archive has full source
+# and needs only the tag name.
+resolve_src_tarball_url() {
+    local tag
+    tag="$(curl -fsSL "https://api.github.com/repos/sushilkumarsahani41/SharkShell/releases/latest" \
+        | grep -o '"tag_name": *"[^"]*"' \
+        | cut -d'"' -f4)"
+    [ -n "$tag" ] || die "could not resolve the latest release tag from the GitHub API"
+    printf 'https://github.com/sushilkumarsahani41/SharkShell/archive/refs/tags/%s.tar.gz' "$tag"
+}
+
 cmd_update() {
     [ "$(id -u)" -eq 0 ] || die "update needs root: sudo sharkshell update"
     local src
+
     src="$(cat "$ENV_DIR/src.path" 2>/dev/null)" || true
 
     if [ -n "$src" ] && [ -d "$src/.git" ]; then
@@ -113,15 +128,13 @@ cmd_update() {
         echo "Downloading latest source tarball..."
         rm -rf "$src"
         mkdir -p "$src"
-        curl -fsSL "https://github.com/sushilkumarsahani41/SharkShell/releases/latest/download/sharkshell-src.tar.gz" \
-            | tar -xz --strip-components=1 -C "$src"
+        curl -fsSL "$(resolve_src_tarball_url)" | tar -xz --strip-components=1 -C "$src"
         echo "Rebuilding + restarting (deploy.sh)..."
         bash "$src/deploy.sh"
     else
         echo "Downloading latest source tarball to $APP_DIR-src..."
         mkdir -p "$APP_DIR-src"
-        curl -fsSL "https://github.com/sushilkumarsahani41/SharkShell/releases/latest/download/sharkshell-src.tar.gz" \
-            | tar -xz --strip-components=1 -C "$APP_DIR-src"
+        curl -fsSL "$(resolve_src_tarball_url)" | tar -xz --strip-components=1 -C "$APP_DIR-src"
         echo "Rebuilding + restarting (deploy.sh)..."
         bash "$APP_DIR-src/deploy.sh"
     fi
