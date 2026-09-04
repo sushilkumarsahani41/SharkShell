@@ -6,7 +6,7 @@
 # Arch:     x86_64 and arm64
 #
 #   One-liner (pulls everything for you):
-#     curl -fsSL https://raw.githubusercontent.com/sushilkumarsahani41/SharkShell/main/install.sh | sudo bash
+#     curl -fsSL https://sharkshell.in/get | sudo bash
 #
 #   Or from a local clone / release bundle:
 #     sudo ./deploy.sh

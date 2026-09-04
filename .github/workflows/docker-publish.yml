@@ -109,7 +109,7 @@ jobs:
           **Script-based deploy (LXC / VPS / bare metal, no Docker):**
           Supports Debian/Ubuntu (systemd) and Alpine (OpenRC), x86_64 + arm64. One command:
           \`\`\`bash
-          curl -fsSL https://raw.githubusercontent.com/sushilkumarsahani41/SharkShell/main/install.sh | sudo bash
+          curl -fsSL https://sharkshell.in/get | sudo bash
           \`\`\`
           Or from this release bundle:
           \`\`\`bash

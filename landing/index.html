@@ -41,12 +41,14 @@
     </script>
 
     <!-- Deep GA4 analytics (Consent Mode v2 + custom instrumentation) -->
-    <script src="analytics.js"></script>
+    <!-- deferred: sets consent defaults + dataLayer stub, doesn't need to block the parser -->
+    <script src="analytics.js" defer></script>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Schibsted+Grotesk:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <link rel="preload" as="image" href="screenshots/dashboard.webp" type="image/webp" fetchpriority="high">
 </head>
 <body>
 
@@ -131,7 +133,10 @@
             </div>
         </div>
         <div class="hero-screenshot">
-            <img src="screenshots/dashboard.png" alt="SharkShell dashboard showing SSH keys, saved hosts and security status" loading="eager" fetchpriority="high">
+            <picture>
+                <source srcset="screenshots/dashboard.webp" type="image/webp">
+                <img src="screenshots/dashboard.png" alt="SharkShell dashboard showing SSH keys, saved hosts and security status" width="1920" height="999" loading="eager" fetchpriority="high">
+            </picture>
         </div>
     </section>
 
@@ -229,11 +234,11 @@
                         <span class="frame-url" id="frameUrl">localhost:8080/dashboard</span>
                     </div>
                     <div class="frame-body">
-                        <img src="screenshots/dashboard.png" alt="SharkShell Dashboard" class="tab-image active" data-tab="dashboard">
-                        <img src="screenshots/terminal.png" alt="SharkShell multi-tab terminal" class="tab-image" data-tab="terminal" loading="lazy">
-                        <img src="screenshots/hosts.png" alt="SharkShell hosts manager" class="tab-image" data-tab="hosts" loading="lazy">
-                        <img src="screenshots/keystore.png" alt="SharkShell encrypted keystore" class="tab-image" data-tab="keystore" loading="lazy">
-                        <img src="screenshots/login.png" alt="SharkShell login with 2FA" class="tab-image" data-tab="login" loading="lazy">
+                        <picture><source srcset="screenshots/dashboard.webp" type="image/webp"><img src="screenshots/dashboard.png" alt="SharkShell Dashboard" class="tab-image active" data-tab="dashboard" width="1920" height="999"></picture>
+                        <picture><source srcset="screenshots/terminal.webp" type="image/webp"><img src="screenshots/terminal.png" alt="SharkShell multi-tab terminal" class="tab-image" data-tab="terminal" width="1920" height="999" loading="lazy"></picture>
+                        <picture><source srcset="screenshots/hosts.webp" type="image/webp"><img src="screenshots/hosts.png" alt="SharkShell hosts manager" class="tab-image" data-tab="hosts" width="1920" height="999" loading="lazy"></picture>
+                        <picture><source srcset="screenshots/keystore.webp" type="image/webp"><img src="screenshots/keystore.png" alt="SharkShell encrypted keystore" class="tab-image" data-tab="keystore" width="1920" height="999" loading="lazy"></picture>
+                        <picture><source srcset="screenshots/login.webp" type="image/webp"><img src="screenshots/login.png" alt="SharkShell login with 2FA" class="tab-image" data-tab="login" width="1920" height="999" loading="lazy"></picture>
                     </div>
                 </div>
                 <p class="screenshot-caption" id="captionText">Dashboard — SSH keys, saved hosts, and security status at a glance</p>
@@ -403,7 +408,7 @@ docker compose up -d</code></pre>
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
                                     </button>
                                 </div>
-                                <pre><code id="cmd3">curl -fsSL https://raw.githubusercontent.com/sushilkumarsahani41/SharkShell/main/install.sh | sudo bash</code></pre>
+                                <pre><code id="cmd3">curl -fsSL https://sharkshell.in/get | sudo bash</code></pre>
                             </div>
                             <p class="qs-alt">Or from a release bundle: <code>curl -fsSL https://github.com/sushilkumarsahani41/SharkShell/releases/latest/download/sharkshell-deploy-2.3.0.tar.gz | tar -xz &amp;&amp; cd sharkshell-* &amp;&amp; sudo ./deploy.sh</code></p>
                         </div>

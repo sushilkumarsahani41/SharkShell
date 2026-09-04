@@ -1,0 +1,14 @@
+# SharkShell — script deploy shortcuts
+# curl -fsSL https://sharkshell.in/get | sudo bash
+/install.sh   https://raw.githubusercontent.com/sushilkumarsahani41/SharkShell/main/install.sh   302
+/deploy.sh    https://raw.githubusercontent.com/sushilkumarsahani41/SharkShell/main/deploy.sh    302
+
+# Convenience aliases
+/install      https://raw.githubusercontent.com/sushilkumarsahani41/SharkShell/main/install.sh   302
+/get          https://raw.githubusercontent.com/sushilkumarsahani41/SharkShell/main/install.sh   302
+
+# Project shortcuts
+/github       https://github.com/sushilkumarsahani41/SharkShell                                 302
+/docker       https://hub.docker.com/r/greatsharktech/sharkshell                                302
+/releases     https://github.com/sushilkumarsahani41/SharkShell/releases                        302
+/docs/mcp     https://github.com/sushilkumarsahani41/SharkShell/blob/main/docs/MCP.md            302

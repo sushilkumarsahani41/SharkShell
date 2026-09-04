@@ -116,7 +116,7 @@ For low-resource environments (Proxmox LXC containers, small VPS, Raspberry Pi),
 Supported: **Debian / Ubuntu** (apt + systemd) and **Alpine** (apk + OpenRC), x86_64 and arm64.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/sushilkumarsahani41/SharkShell/main/install.sh | sudo bash
+curl -fsSL https://sharkshell.in/get | sudo bash
 ```
 
 Or from a local clone / release bundle:
