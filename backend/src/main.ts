@@ -8,10 +8,18 @@ import { DatabaseService } from './database/database.service';
 async function bootstrap() {
     const app = await NestFactory.create(AppModule);
 
+    // Behind nginx the backend is reached over plain HTTP; honour X-Forwarded-Proto/Host so
+    // req.protocol / req.get('host') reflect the public https origin in the OAuth discovery docs.
+    app.getHttpAdapter().getInstance().set('trust proxy', true);
+
     // Global prefix for all routes — except the OAuth discovery documents, which RFC 8414 / RFC 9728
     // require at fixed root-level well-known paths so MCP clients can find them without config.
     app.setGlobalPrefix('api', {
-        exclude: ['/.well-known/oauth-authorization-server', '/.well-known/oauth-protected-resource'],
+        exclude: [
+            '/.well-known/oauth-authorization-server',
+            '/.well-known/oauth-protected-resource',
+            '/.well-known/oauth-protected-resource/api/mcp',
+        ],
     });
 
     // CORS

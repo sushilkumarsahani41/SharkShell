@@ -1,8 +1,19 @@
 import { Body, Controller, Get, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { AuthGuard } from '../auth/auth.guard';
 import { OAuthService, OAuthError } from './oauth.service';
 import { OAUTH_ACCESS_TOKEN_TTL_DAYS, McpCapability } from './mcp-token.service';
+import { canonicalMcpResource } from './mcp-origin.util';
+
+const LOOPBACK_HOSTS = ['localhost', '127.0.0.1', '[::1]', '::1'];
+function isLoopbackUri(uri: string): boolean {
+    try {
+        const u = new URL(uri);
+        return u.protocol === 'http:' && LOOPBACK_HOSTS.includes(u.hostname);
+    } catch {
+        return false;
+    }
+}
 
 /** Public-facing OAuth 2.1 + Dynamic Client Registration for MCP clients (e.g. Claude connecting by URL). */
 @Controller('oauth')
@@ -30,15 +41,24 @@ export class OAuthController {
     // Consent screen data — called by the frontend /oauth/authorize page once the user is signed in.
     @Get('authorize-info')
     @UseGuards(AuthGuard)
-    async authorizeInfo(@Query() q: any, @Res() res: Response) {
+    async authorizeInfo(@Req() req: Request, @Query() q: any, @Res() res: Response) {
         try {
             const client = await this.oauth.resolveAuthorizeRequest({
                 clientId: q.client_id,
                 redirectUri: q.redirect_uri,
                 codeChallenge: q.code_challenge,
                 codeChallengeMethod: q.code_challenge_method,
+                resource: q.resource,
+                canonicalResource: canonicalMcpResource(req),
             });
-            return res.json({ client_id: client.client_id, client_name: client.client_name });
+            return res.json({
+                client_id: client.client_id,
+                client_name: client.client_name,
+                // CIMD security requirement: the consent screen must show the redirect host,
+                // with an extra warning when every registered redirect URI is loopback.
+                redirect_uris: client.redirect_uris,
+                loopback_only: client.redirect_uris.length > 0 && client.redirect_uris.every(isLoopbackUri),
+            });
         } catch (err) {
             return this.oauthError(res, err);
         }
@@ -48,9 +68,10 @@ export class OAuthController {
     @Post('authorize-info')
     @UseGuards(AuthGuard)
     async decide(@Req() req: any, @Body() body: any, @Res() res: Response) {
-        const { clientId, redirectUri, codeChallenge, codeChallengeMethod, state, approve } = body || {};
+        const { clientId, redirectUri, codeChallenge, codeChallengeMethod, state, approve, resource, scope: scopeStr } = body || {};
+        const canonicalResource = canonicalMcpResource(req);
         try {
-            await this.oauth.resolveAuthorizeRequest({ clientId, redirectUri, codeChallenge, codeChallengeMethod });
+            await this.oauth.resolveAuthorizeRequest({ clientId, redirectUri, codeChallenge, codeChallengeMethod, resource, canonicalResource });
         } catch (err) {
             return this.oauthError(res, err);
         }
@@ -70,6 +91,8 @@ export class OAuthController {
         const code = await this.oauth.issueCode({
             clientId, userId: req.user.id, redirectUri, codeChallenge,
             scope: { capability, scopeAll, allowedHostIds, allowedGroupIds },
+            resource: resource || canonicalResource,
+            scopeStr: (typeof scopeStr === 'string' && scopeStr.trim()) || 'mcp',
         });
 
         const approved = new URL(redirectUri);
@@ -78,13 +101,18 @@ export class OAuthController {
         return res.json({ redirectUrl: approved.toString() });
     }
 
+    // Claude sends the token exchange and refresh as application/x-www-form-urlencoded
+    // (RFC 6749 §4.1.3); Nest's default body parser handles both that and JSON.
     @Post('token')
-    async token(@Body() body: any, @Res() res: Response) {
+    async token(@Req() req: Request, @Body() body: any, @Res() res: Response) {
+        body = body && Object.keys(body).length ? body : (req.body || {});
+        const canonicalResource = canonicalMcpResource(req);
         try {
             let grant: { token: string; refreshToken: string };
             if (body?.grant_type === 'authorization_code') {
                 grant = await this.oauth.exchangeAuthorizationCode({
                     clientId: body.client_id, code: body.code, redirectUri: body.redirect_uri, codeVerifier: body.code_verifier,
+                    resource: body.resource, canonicalResource,
                 });
             } else if (body?.grant_type === 'refresh_token') {
                 grant = await this.oauth.refreshGrant(body.refresh_token);
@@ -96,6 +124,7 @@ export class OAuthController {
                 token_type: 'Bearer',
                 expires_in: OAUTH_ACCESS_TOKEN_TTL_DAYS * 24 * 60 * 60,
                 refresh_token: grant.refreshToken,
+                scope: 'mcp',
             });
         } catch (err) {
             return this.oauthError(res, err);

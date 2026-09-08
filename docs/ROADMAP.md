@@ -35,6 +35,18 @@ Planning document for the next block of work. Nothing here is built yet except w
 
 ---
 
+## MCP connector spec refresh ✅ DONE (v2.3.0)
+
+Brought `backend/src/mcp/` up to the current MCP spec (`2025-06-18` / `2025-11-25`) and
+Anthropic's custom-connector requirements: protocol-version negotiation + `MCP-Protocol-Version`
+handling, `Origin` 403 validation, `scopes_supported` + `scope` challenge in the OAuth metadata,
+RFC 8707 resource indicators (audience-bound tokens), Client ID Metadata Document support with
+port-agnostic loopback redirect matching, tool `title`/`annotations`, tool-error (not protocol-error)
+handling of bad arguments, and `trust proxy` + documented `APP_URL` so discovery docs are correct
+behind nginx. See `docs/MCP.md`.
+
+---
+
 ## Phase 1 — Terminal visual scrollback restore ✅ DONE
 
 **Independent of all org work. Highest daily-use value, lowest risk — shipped first (v2.0.0).**

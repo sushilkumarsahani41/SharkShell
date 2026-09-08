@@ -10,8 +10,20 @@ const MAX_OUTPUT_BYTES = 200 * 1024;
 const DEFAULT_TIMEOUT_S = 30;
 const MAX_TIMEOUT_S = 300;
 
+/** Returned in the `initialize` result to orient the model (MCP `instructions`). */
+export const SERVER_INSTRUCTIONS =
+    'SharkShell exposes your saved SSH infrastructure. Call list_hosts first to see which hosts this ' +
+    'access key may reach (use the returned id or name), and list_ssh_keys for keystore metadata. ' +
+    'run_command runs a shell command on a host over SSH with its stored credentials; download_file / ' +
+    'upload_file transfer UTF-8 text files over SFTP. Command execution and writes need an ' +
+    "'execute'-capability key and stay within the key's host scope. SSH private keys and host " +
+    'passwords are never returned.';
+
 /** Raised for policy denials so the controller/audit can distinguish them from runtime errors. */
 class DeniedError extends Error { }
+
+/** Input-validation failure — surfaced to the model as a tool error (isError: true) per MCP SEP-1303, not a JSON-RPC protocol error. */
+class InvalidArgsError extends Error { }
 
 @Injectable()
 export class McpService {
@@ -27,16 +39,21 @@ export class McpService {
         return [
             {
                 name: 'list_hosts',
+                title: 'List SSH hosts',
                 description: 'List SSH hosts this key may reach (name, address, port, username, auth type, group). Use the returned id or name with run_command.',
                 inputSchema: { type: 'object', properties: {} },
+                annotations: { title: 'List SSH hosts', readOnlyHint: true, openWorldHint: false },
             },
             {
                 name: 'list_ssh_keys',
+                title: 'List keystore SSH keys',
                 description: 'List SSH keys stored in the SharkShell keystore. Returns metadata and public keys only — private keys are never exposed.',
                 inputSchema: { type: 'object', properties: {} },
+                annotations: { title: 'List keystore SSH keys', readOnlyHint: true, openWorldHint: false },
             },
             {
                 name: 'run_command',
+                title: 'Run a shell command over SSH',
                 description: 'Execute a shell command on a saved SSH host using its stored credentials. Returns stdout, stderr and the exit code. Fails if the host has no saved credentials or is out of this key\'s scope.',
                 inputSchema: {
                     type: 'object',
@@ -47,9 +64,11 @@ export class McpService {
                     },
                     required: ['host', 'command'],
                 },
+                annotations: { title: 'Run a shell command over SSH', readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
             },
             {
                 name: 'download_file',
+                title: 'Download a text file over SFTP',
                 description: `Read a text file from a saved SSH host over SFTP — config files, logs, scripts, small data files. Not for binary files. Truncated at ${MAX_OUTPUT_BYTES / 1024}KB.`,
                 inputSchema: {
                     type: 'object',
@@ -59,9 +78,11 @@ export class McpService {
                     },
                     required: ['host', 'path'],
                 },
+                annotations: { title: 'Download a text file over SFTP', readOnlyHint: true, openWorldHint: true },
             },
             {
                 name: 'upload_file',
+                title: 'Upload a text file over SFTP',
                 description: `Write text content to a file on a saved SSH host over SFTP, creating or overwriting it. For config files, scripts, or small data files — max ${MAX_OUTPUT_BYTES / 1024}KB of content.`,
                 inputSchema: {
                     type: 'object',
@@ -72,6 +93,7 @@ export class McpService {
                     },
                     required: ['host', 'path', 'content'],
                 },
+                annotations: { title: 'Upload a text file over SFTP', readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
             },
         ];
     }
@@ -173,9 +195,7 @@ export class McpService {
     // RESOLVED row — this is the real gate, not list_hosts' filtering.
     private async resolveHost(key: McpKey, hostArg: string) {
         if (!hostArg) {
-            const err: any = new Error('"host" argument is required');
-            err.rpcCode = -32602;
-            throw err;
+            throw new InvalidArgsError('"host" argument is required');
         }
         const result = await this.db.query(
             `SELECT * FROM hosts WHERE user_id = $1 AND (id::text = $2 OR LOWER(name) = LOWER($2)) LIMIT 1`,
@@ -197,9 +217,7 @@ export class McpService {
         }
         const { command } = args;
         if (!command) {
-            const err: any = new Error('"command" argument is required');
-            err.rpcCode = -32602;
-            throw err;
+            throw new InvalidArgsError('"command" argument is required');
         }
         const timeoutS = Math.min(Math.max(Number(args.timeout_seconds) || DEFAULT_TIMEOUT_S, 1), MAX_TIMEOUT_S);
         const hostRow = await this.resolveHost(key, args.host);
@@ -217,9 +235,7 @@ export class McpService {
     private async downloadFile(key: McpKey, args: any): Promise<{ text: string; hostId: string; hostName: string }> {
         const { path } = args;
         if (!path) {
-            const err: any = new Error('"path" argument is required');
-            err.rpcCode = -32602;
-            throw err;
+            throw new InvalidArgsError('"path" argument is required');
         }
         const hostRow = await this.resolveHost(key, args.host);
         const connConfig = await this.buildConnConfig(key.user_id, hostRow);
@@ -236,9 +252,7 @@ export class McpService {
         }
         const { path, content } = args;
         if (!path || content === undefined || content === null) {
-            const err: any = new Error('"path" and "content" arguments are required');
-            err.rpcCode = -32602;
-            throw err;
+            throw new InvalidArgsError('"path" and "content" arguments are required');
         }
         if (Buffer.byteLength(String(content), 'utf-8') > MAX_OUTPUT_BYTES) {
             throw new Error(`Content too large (max ${MAX_OUTPUT_BYTES / 1024}KB via MCP — use the SharkShell SFTP page for larger files)`);

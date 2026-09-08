@@ -17,6 +17,10 @@ export interface McpKey {
     last_used_at: string | null;
     expires_at: string | null;
     oauth_client_id: string | null;
+    /** RFC 8707 resource this OAuth-issued key is audience-bound to (null for manual keys). */
+    resource: string | null;
+    /** Space-delimited OAuth scope string granted at consent (null for manual keys). */
+    scope: string | null;
 }
 
 interface KeyInput {
@@ -33,10 +37,14 @@ export interface OAuthScope {
     scopeAll: boolean;
     allowedHostIds: string[];
     allowedGroupIds: string[];
+    /** RFC 8707 canonical resource URI the token is bound to. */
+    resource?: string | null;
+    /** Space-delimited OAuth scope string the client was granted. */
+    scopeStr?: string | null;
 }
 
 const PUBLIC_COLUMNS =
-    'id, user_id, label, capability, scope_all, allowed_host_ids, allowed_group_ids, token_prefix, created_at, last_used_at, expires_at, oauth_client_id';
+    'id, user_id, label, capability, scope_all, allowed_host_ids, allowed_group_ids, token_prefix, created_at, last_used_at, expires_at, oauth_client_id, resource, scope';
 
 // OAuth-issued keys: access tokens are short-lived, refresh tokens renew them silently.
 export const OAUTH_ACCESS_TOKEN_TTL_DAYS = 30;
@@ -123,12 +131,13 @@ export class McpTokenService {
         const result = await this.db.query(
             `INSERT INTO mcp_tokens (
                 user_id, token_hash, token_prefix, label, capability, scope_all, allowed_host_ids, allowed_group_ids,
-                expires_at, oauth_client_id, refresh_token_hash, refresh_token_expires_at
-             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                expires_at, oauth_client_id, refresh_token_hash, refresh_token_expires_at, resource, scope
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
              RETURNING ${PUBLIC_COLUMNS}`,
             [
                 userId, tokenHash, tokenPrefix, clientLabel, scope.capability, scope.scopeAll,
                 scope.allowedHostIds, scope.allowedGroupIds, expiresAt, oauthClientId, refreshTokenHash, refreshExpiresAt,
+                scope.resource ?? null, scope.scopeStr ?? null,
             ],
         );
         return { token, refreshToken, key: result.rows[0] as McpKey };

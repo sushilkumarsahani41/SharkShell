@@ -14,10 +14,13 @@ export default function OAuthConsentPage() {
     const codeChallenge = searchParams.get('code_challenge') || '';
     const codeChallengeMethod = searchParams.get('code_challenge_method') || 'S256';
     const state = searchParams.get('state') || '';
+    const resource = searchParams.get('resource') || '';
+    const requestedScope = searchParams.get('scope') || '';
 
     const [phase, setPhase] = useState('loading'); // loading | error | confirm | redirecting
     const [error, setError] = useState('');
     const [clientName, setClientName] = useState('');
+    const [loopbackOnly, setLoopbackOnly] = useState(false);
     const [hosts, setHosts] = useState([]);
     const [groups, setGroups] = useState([]);
     const [scope, setScope] = useState(emptyScope);
@@ -36,7 +39,7 @@ export default function OAuthConsentPage() {
 
         async function load() {
             try {
-                const qs = new URLSearchParams({ client_id: clientId, redirect_uri: redirectUri, code_challenge: codeChallenge, code_challenge_method: codeChallengeMethod }).toString();
+                const qs = new URLSearchParams({ client_id: clientId, redirect_uri: redirectUri, code_challenge: codeChallenge, code_challenge_method: codeChallengeMethod, ...(resource ? { resource } : {}) }).toString();
                 const [infoRes, hostsRes, groupsRes] = await Promise.all([
                     fetch(apiUrl(`/api/oauth/authorize-info?${qs}`), { headers: authHeaders() }),
                     fetch(apiUrl('/api/hosts'), { headers: authHeaders() }),
@@ -50,6 +53,7 @@ export default function OAuthConsentPage() {
                 }
                 const info = await infoRes.json();
                 setClientName(info.client_name || 'MCP Client');
+                setLoopbackOnly(!!info.loopback_only);
                 if (hostsRes.ok) setHosts((await hostsRes.json()).hosts || []);
                 if (groupsRes.ok) setGroups((await groupsRes.json()).groups || []);
                 setPhase('confirm');
@@ -59,13 +63,14 @@ export default function OAuthConsentPage() {
             }
         }
         load();
-    }, [token, clientId, redirectUri, codeChallenge]);
+    }, [token, clientId, redirectUri, codeChallenge, resource]);
 
     async function decide(approve) {
         setSubmitting(true);
         try {
             const payload = {
                 clientId, redirectUri, codeChallenge, codeChallengeMethod, state, approve,
+                resource, scope: requestedScope || 'mcp',
                 capability: scope.capability,
                 scopeAll: scope.scopeAll,
                 allowedHostIds: scope.scopeAll ? [] : scope.allowedHostIds,
@@ -135,6 +140,17 @@ export default function OAuthConsentPage() {
                             <p className="auth-subtitle">
                                 <strong>{clientName}</strong> wants to connect to SharkShell as <strong>{user?.email}</strong>
                             </p>
+
+                            <p className="mcp-note" style={{ marginBottom: loopbackOnly ? 8 : 16 }}>
+                                After you allow, SharkShell sends the connection to{' '}
+                                <strong>{(() => { try { return new URL(redirectUri).host; } catch { return redirectUri; } })()}</strong>.
+                            </p>
+                            {loopbackOnly && (
+                                <div className="auth-error" style={{ marginBottom: 16 }}>
+                                    ⚠️ This client receives the connection on your own machine (a local address). Only continue if
+                                    you just started <strong>{clientName}</strong> yourself.
+                                </div>
+                            )}
 
                             <div className="input-group" style={{ marginBottom: 16 }}>
                                 <label>Capability</label>

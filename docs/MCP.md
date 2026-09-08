@@ -2,10 +2,13 @@
 
 SharkShell ships with a built-in [Model Context Protocol](https://modelcontextprotocol.io) server, letting AI assistants like Claude work with your infrastructure through SharkShell — listing hosts, inspecting keystore metadata, and running commands over SSH using your stored credentials.
 
-- **Transport:** Streamable HTTP (JSON-RPC 2.0 over `POST`)
+- **Transport:** Streamable HTTP (JSON-RPC 2.0 over `POST`; no SSE stream, `GET` → `405`)
 - **Endpoint:** `https://<your-sharkshell-host>/api/mcp`
-- **Auth:** `Authorization: Bearer ssk_…` (a SharkShell MCP access key)
-- **Protocol version:** `2025-03-26`
+- **Auth:** OAuth 2.1 (DCR or Client ID Metadata Documents), or `Authorization: Bearer ssk_…` (a SharkShell MCP access key)
+- **Protocol version:** negotiated — advertises `2025-11-25`, accepts `2025-06-18` and `2025-03-26`. Send `MCP-Protocol-Version` on every post-initialize request; an unknown value is rejected with `400`.
+- **Origin:** requests carrying a browser `Origin` header that isn't this instance's own origin (or a value in `MCP_ALLOWED_ORIGINS`) get `403`. Server-to-server callers send no `Origin` and are unaffected.
+
+> Set `APP_URL` to the instance's public `https://` origin. Behind a reverse proxy the backend only sees plain HTTP, and the OAuth discovery documents must advertise `https://` URLs and the correct host.
 
 ---
 
@@ -19,7 +22,7 @@ Just point the client at the endpoint — no manual key needed:
 claude mcp add --transport http sharkshell https://your-sharkshell-host/api/mcp
 ```
 
-The first tool call gets a `401` advertising SharkShell's OAuth metadata (`/.well-known/oauth-protected-resource` → `/.well-known/oauth-authorization-server`). The client registers itself (RFC 7591 Dynamic Client Registration, no manual setup), then opens your browser to approve the connection. Sign in to SharkShell if needed, then choose the same **capability** and **host scope** described below and click **Allow** — SharkShell redirects back to the client with an authorization code (PKCE, S256).
+The first tool call gets a `401` whose `WWW-Authenticate` header advertises SharkShell's OAuth metadata (`/.well-known/oauth-protected-resource` — also served at `/.well-known/oauth-protected-resource/api/mcp` — → `/.well-known/oauth-authorization-server`). The client identifies itself with a **Client ID Metadata Document** (an `https://` URL as its `client_id`; `client_id_metadata_document_supported: true`) or, failing that, registers via **RFC 7591 Dynamic Client Registration** — both need no manual setup. It then opens your browser to approve the connection. Sign in to SharkShell if needed, then choose the same **capability** and **host scope** described below and click **Allow** — SharkShell redirects back to the client with an authorization code (PKCE `S256`; the RFC 8707 `resource` parameter binds the token to this MCP endpoint).
 
 - Access tokens are valid **30 days**; a refresh token (**90 days**) renews them silently as long as the client keeps using the connection. Once both expire, or if the key is revoked, the client re-runs the browser approval.
 - The resulting key shows up in **Settings → MCP Access** tagged **OAuth**, alongside manually-created keys — reset/revoke work identically.
@@ -98,16 +101,32 @@ claude mcp add --transport http sharkshell https://your-sharkshell-host/api/mcp 
 
 ## 4. OAuth reference
 
-For clients that don't auto-discover: SharkShell implements [RFC 8414](https://www.rfc-editor.org/rfc/rfc8414) (authorization server metadata), [RFC 9728](https://www.rfc-editor.org/rfc/rfc9728) (protected resource metadata), and [RFC 7591](https://www.rfc-editor.org/rfc/rfc7591) (dynamic client registration), with PKCE (`S256` only) and no client secret (`token_endpoint_auth_method: none`).
+SharkShell is its own OAuth 2.1 authorization server and resource server. It implements
+[RFC 8414](https://www.rfc-editor.org/rfc/rfc8414) (authorization server metadata),
+[RFC 9728](https://www.rfc-editor.org/rfc/rfc9728) (protected resource metadata),
+[RFC 7591](https://www.rfc-editor.org/rfc/rfc7591) (dynamic client registration),
+[Client ID Metadata Documents](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-client-id-metadata-document-00),
+and [RFC 8707](https://www.rfc-editor.org/rfc/rfc8707) resource indicators — with PKCE (`S256` only),
+no client secret (`token_endpoint_auth_method: none`), and rotating refresh tokens for public clients.
 
 | Endpoint | Purpose |
 |----------|---------|
-| `GET /.well-known/oauth-protected-resource` | Points at the authorization server (this same origin). |
-| `GET /.well-known/oauth-authorization-server` | Advertises the endpoints below. |
-| `POST /api/oauth/register` | Dynamic Client Registration — send `redirect_uris` (`https://…` or loopback) and an optional `client_name`. |
-| `GET /oauth/authorize` | Browser-facing consent screen (requires a SharkShell session). |
-| `POST /api/oauth/token` | `grant_type=authorization_code` (with `code_verifier`) or `grant_type=refresh_token`. |
+| `GET /.well-known/oauth-protected-resource[/api/mcp]` | `resource` = `<origin>/api/mcp`, `authorization_servers` = this origin, `scopes_supported` = `["mcp"]`. |
+| `GET /.well-known/oauth-authorization-server` | Advertises the endpoints below plus `code_challenge_methods_supported: ["S256"]` and `client_id_metadata_document_supported: true`. |
+| `POST /api/oauth/register` | Dynamic Client Registration — `application/json`, send `redirect_uris` (`https://…` or loopback) + optional `client_name`. |
+| `GET /oauth/authorize` | Browser-facing consent screen (requires a SharkShell session). Accepts `resource` and `scope`. |
+| `POST /api/oauth/token` | `application/x-www-form-urlencoded`; `grant_type=authorization_code` (with `code_verifier`, `resource`) or `grant_type=refresh_token`. Errors use RFC 6749 codes (`invalid_grant`, `invalid_target`, …). |
+
+- **Client ID Metadata Documents:** a `client_id` that is an `https://` URL is fetched (with an SSRF guard, size cap, and short-TTL cache), its `client_id` must equal the URL, and its `redirect_uris` are used directly — no registration call.
+- **Loopback redirect URIs** (`http://localhost` / `127.0.0.1` / `[::1]`) match with the port ignored (RFC 8252 §7.3); everything else must match exactly.
+- **Resource indicators:** when a `resource` parameter is present it must equal `<origin>/api/mcp` or the request is rejected `invalid_target`. Issued tokens are audience-bound to that resource.
 
 ## 5. JSON-RPC reference
 
-Supported methods: `initialize`, `ping`, `tools/list`, `tools/call`. Notifications (no `id`, e.g. `notifications/initialized`) return `202` with no body. Auth failures return HTTP `401` with a JSON-RPC error (`code: -32001`) and a `WWW-Authenticate: Bearer resource_metadata="…"` header pointing OAuth-aware clients at the discovery document.
+Supported methods: `initialize`, `ping`, `tools/list`, `tools/call`. `initialize` negotiates the
+protocol version (echoes the client's when supported, else returns `2025-11-25`) and returns
+`serverInfo` + `instructions`. Notifications (no `id`, e.g. `notifications/initialized`) return
+`202` with no body. JSON-RPC batching (arrays) is accepted for older clients but is no longer part
+of the spec. Tool input-validation failures come back as tool results with `isError: true` (so the
+model can self-correct), not as JSON-RPC protocol errors. Auth failures return HTTP `401` with a
+JSON-RPC error (`code: -32001`) and `WWW-Authenticate: Bearer resource_metadata="…", scope="mcp", error="invalid_token"`.

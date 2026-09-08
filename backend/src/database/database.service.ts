@@ -128,9 +128,11 @@ export class DatabaseService implements OnModuleDestroy {
     await this.query(`
       CREATE TABLE IF NOT EXISTS oauth_clients (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        client_id VARCHAR(64) UNIQUE NOT NULL,
+        client_id VARCHAR(512) UNIQUE NOT NULL,
         client_name VARCHAR(255),
         redirect_uris TEXT[] NOT NULL,
+        is_cimd BOOLEAN NOT NULL DEFAULT false,
+        metadata_fetched_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT NOW()
       )
     `);
@@ -139,7 +141,7 @@ export class DatabaseService implements OnModuleDestroy {
       CREATE TABLE IF NOT EXISTS oauth_codes (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         code_hash VARCHAR(64) UNIQUE NOT NULL,
-        client_id VARCHAR(64) NOT NULL REFERENCES oauth_clients(client_id) ON DELETE CASCADE,
+        client_id VARCHAR(512) NOT NULL REFERENCES oauth_clients(client_id) ON DELETE CASCADE,
         user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         redirect_uri TEXT NOT NULL,
         code_challenge VARCHAR(128) NOT NULL,
@@ -147,6 +149,8 @@ export class DatabaseService implements OnModuleDestroy {
         scope_all BOOLEAN NOT NULL,
         allowed_host_ids UUID[] NOT NULL DEFAULT '{}',
         allowed_group_ids UUID[] NOT NULL DEFAULT '{}',
+        resource TEXT,
+        scope VARCHAR(255),
         expires_at TIMESTAMP NOT NULL,
         used_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT NOW()
@@ -161,6 +165,25 @@ export class DatabaseService implements OnModuleDestroy {
       'ALTER TABLE mcp_tokens ADD COLUMN IF NOT EXISTS refresh_token_expires_at TIMESTAMP',
     ];
     for (const q of mcpOauthAlters) {
+      try { await this.query(q); } catch { }
+    }
+
+    // MCP connector-spec alignment (protocol 2025-06-18 / 2025-11-25):
+    //  - CIMD client_ids are HTTPS URLs, so widen every client_id column past VARCHAR(64)
+    //  - is_cimd / metadata_fetched_at track Client-ID-Metadata-Document clients
+    //  - resource / scope carry RFC 8707 audience + granted OAuth scope onto codes and tokens
+    const mcpConnectorAlters = [
+      'ALTER TABLE oauth_clients ALTER COLUMN client_id TYPE VARCHAR(512)',
+      'ALTER TABLE oauth_clients ADD COLUMN IF NOT EXISTS is_cimd BOOLEAN NOT NULL DEFAULT false',
+      'ALTER TABLE oauth_clients ADD COLUMN IF NOT EXISTS metadata_fetched_at TIMESTAMP',
+      'ALTER TABLE oauth_codes ALTER COLUMN client_id TYPE VARCHAR(512)',
+      'ALTER TABLE oauth_codes ADD COLUMN IF NOT EXISTS resource TEXT',
+      'ALTER TABLE oauth_codes ADD COLUMN IF NOT EXISTS scope VARCHAR(255)',
+      'ALTER TABLE mcp_tokens ALTER COLUMN oauth_client_id TYPE VARCHAR(512)',
+      'ALTER TABLE mcp_tokens ADD COLUMN IF NOT EXISTS resource TEXT',
+      'ALTER TABLE mcp_tokens ADD COLUMN IF NOT EXISTS scope VARCHAR(255)',
+    ];
+    for (const q of mcpConnectorAlters) {
       try { await this.query(q); } catch { }
     }
 

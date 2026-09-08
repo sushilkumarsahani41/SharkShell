@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { DatabaseService } from '../database/database.service';
 import { McpTokenService, McpCapability, OAuthScope } from './mcp-token.service';
+import { CimdService, isCimdClientId } from './cimd.service';
+import { resourceMatches } from './mcp-origin.util';
 
 const CODE_TTL_MS = 5 * 60 * 1000;
 
@@ -9,6 +11,28 @@ interface OAuthClient {
     client_id: string;
     client_name: string | null;
     redirect_uris: string[];
+}
+
+/**
+ * RFC 8252 §7.3 loopback-redirect matching: for `http://localhost` / `127.0.0.1` / `[::1]`
+ * the port is chosen at runtime by the native client, so it must be ignored when matching.
+ * Everything else is compared exactly (open-redirection defense).
+ */
+export function redirectUriAllowed(registered: string[], candidate: string): boolean {
+    if (registered.includes(candidate)) return true;
+    let c: URL;
+    try { c = new URL(candidate); } catch { return false; }
+    const isLoopback = (u: URL) =>
+        u.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]', '::1'].includes(u.hostname);
+    if (!isLoopback(c)) return false;
+    return registered.some((r) => {
+        try {
+            const ru = new URL(r);
+            return isLoopback(ru) && ru.hostname === c.hostname && ru.pathname === c.pathname;
+        } catch {
+            return false;
+        }
+    });
 }
 
 /** Thrown for spec-defined OAuth error codes so the controller can shape a proper error response. */
@@ -23,10 +47,35 @@ export class OAuthService {
     constructor(
         private db: DatabaseService,
         private tokens: McpTokenService,
+        private cimd: CimdService,
     ) { }
 
     private hash(value: string): string {
         return crypto.createHash('sha256').update(value).digest('hex');
+    }
+
+    /**
+     * Resolve a client by any of the three MCP registration mechanisms:
+     * a URL client_id is a Client ID Metadata Document (fetched + validated + cached in
+     * `oauth_clients`); anything else is a DCR / pre-registered client looked up in the DB.
+     */
+    async resolveClient(clientId: string): Promise<OAuthClient | null> {
+        if (!clientId) return null;
+        if (isCimdClientId(clientId)) {
+            const meta = await this.cimd.resolve(clientId);
+            await this.db.query(
+                `INSERT INTO oauth_clients (client_id, client_name, redirect_uris, is_cimd, metadata_fetched_at)
+                 VALUES ($1, $2, $3, true, NOW())
+                 ON CONFLICT (client_id) DO UPDATE
+                   SET client_name = EXCLUDED.client_name,
+                       redirect_uris = EXCLUDED.redirect_uris,
+                       is_cimd = true,
+                       metadata_fetched_at = NOW()`,
+                [meta.client_id, meta.client_name, meta.redirect_uris],
+            );
+            return { client_id: meta.client_id, client_name: meta.client_name, redirect_uris: meta.redirect_uris };
+        }
+        return this.getClient(clientId);
     }
 
     private isValidRedirectUri(uri: string): boolean {
@@ -68,10 +117,11 @@ export class OAuthService {
     /** Validates the client/redirect pair the browser lands on before showing the consent screen. */
     async resolveAuthorizeRequest(params: {
         clientId: string; redirectUri: string; codeChallenge: string; codeChallengeMethod?: string;
+        resource?: string; canonicalResource: string;
     }): Promise<OAuthClient> {
-        const client = await this.getClient(params.clientId);
+        const client = await this.resolveClient(params.clientId);
         if (!client) throw new OAuthError('invalid_client', 'Unknown client_id — register the client first');
-        if (!client.redirect_uris.includes(params.redirectUri)) {
+        if (!redirectUriAllowed(client.redirect_uris, params.redirectUri)) {
             throw new OAuthError('invalid_request', 'redirect_uri does not match a registered redirect URI for this client');
         }
         if (!params.codeChallenge) {
@@ -79,6 +129,11 @@ export class OAuthService {
         }
         if (params.codeChallengeMethod && params.codeChallengeMethod !== 'S256') {
             throw new OAuthError('invalid_request', 'Only the S256 code_challenge_method is supported');
+        }
+        // RFC 8707: the token can only be minted for this MCP server. Absent is tolerated
+        // (older clients); a mismatched resource is rejected outright.
+        if (params.resource && !resourceMatches(params.resource, params.canonicalResource)) {
+            throw new OAuthError('invalid_target', `resource must be ${params.canonicalResource}`);
         }
         return client;
     }
@@ -90,24 +145,30 @@ export class OAuthService {
         redirectUri: string;
         codeChallenge: string;
         scope: OAuthScope;
+        resource?: string | null;
+        scopeStr?: string | null;
     }): Promise<string> {
         const code = `mcpg_${crypto.randomBytes(32).toString('base64url')}`;
         const expiresAt = new Date(Date.now() + CODE_TTL_MS);
         await this.db.query(
             `INSERT INTO oauth_codes (
                 code_hash, client_id, user_id, redirect_uri, code_challenge,
-                capability, scope_all, allowed_host_ids, allowed_group_ids, expires_at
-             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+                capability, scope_all, allowed_host_ids, allowed_group_ids, resource, scope, expires_at
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
             [
                 this.hash(code), params.clientId, params.userId, params.redirectUri, params.codeChallenge,
-                params.scope.capability, params.scope.scopeAll, params.scope.allowedHostIds, params.scope.allowedGroupIds, expiresAt,
+                params.scope.capability, params.scope.scopeAll, params.scope.allowedHostIds, params.scope.allowedGroupIds,
+                params.resource ?? null, params.scopeStr ?? null, expiresAt,
             ],
         );
         return code;
     }
 
     /** grant_type=authorization_code — verifies PKCE, consumes the code, mints an mcp_tokens row. */
-    async exchangeAuthorizationCode(params: { clientId: string; code: string; redirectUri: string; codeVerifier: string }) {
+    async exchangeAuthorizationCode(params: {
+        clientId: string; code: string; redirectUri: string; codeVerifier: string;
+        resource?: string; canonicalResource: string;
+    }) {
         if (!params.code || !params.codeVerifier) {
             throw new OAuthError('invalid_request', 'code and code_verifier are required');
         }
@@ -128,12 +189,19 @@ export class OAuthService {
             throw new OAuthError('invalid_grant', 'PKCE verification failed');
         }
 
+        // RFC 8707: token request's resource must be consistent with the authorization request's.
+        if (params.resource && !resourceMatches(params.resource, params.canonicalResource)) {
+            throw new OAuthError('invalid_target', `resource must be ${params.canonicalResource}`);
+        }
+
         const client = await this.getClient(row.client_id);
         const scope: OAuthScope = {
             capability: row.capability as McpCapability,
             scopeAll: row.scope_all,
             allowedHostIds: row.allowed_host_ids || [],
             allowedGroupIds: row.allowed_group_ids || [],
+            resource: row.resource || params.canonicalResource,
+            scopeStr: row.scope || 'mcp',
         };
         const grant = await this.tokens.createOAuthGrant(row.user_id, row.client_id, client?.client_name || 'MCP Client', scope);
         return grant;
