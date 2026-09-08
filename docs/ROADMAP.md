@@ -35,7 +35,7 @@ Planning document for the next block of work. Nothing here is built yet except w
 
 ---
 
-## MCP connector spec refresh ✅ DONE (v2.3.0)
+## MCP connector spec refresh ✅ DONE (v2.3.1)
 
 Brought `backend/src/mcp/` up to the current MCP spec (`2025-06-18` / `2025-11-25`) and
 Anthropic's custom-connector requirements: protocol-version negotiation + `MCP-Protocol-Version`

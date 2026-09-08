@@ -124,7 +124,7 @@ export class McpController {
                 return {
                     protocolVersion,
                     capabilities: { tools: { listChanged: false } },
-                    serverInfo: { name: 'SharkShell', title: 'SharkShell', version: '2.3.0' },
+                    serverInfo: { name: 'SharkShell', title: 'SharkShell', version: '2.3.1' },
                     instructions: SERVER_INSTRUCTIONS,
                 };
             }
