@@ -62,6 +62,13 @@ behind nginx. See `docs/MCP.md`.
 
 ---
 
+## Sidebar version display ✅ DONE (v2.3.4)
+
+- Sidebar footer shows the release version below Logout (read from `package.json` at build time,
+  so it tracks every release bump automatically).
+
+---
+
 ## Phase 1 — Terminal visual scrollback restore ✅ DONE
 
 **Independent of all org work. Highest daily-use value, lowest risk — shipped first (v2.0.0).**
