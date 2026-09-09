@@ -34,15 +34,19 @@ const MCP_CLIENTS = [
         id: 'cursor',
         label: 'Cursor',
         target: '~/.cursor/mcp.json (global) or .cursor/mcp.json (project)',
-        hint: 'Settings → Tools & MCP → New MCP Server, then paste.',
+        hint: 'No add-command in the Cursor CLI — use the one-click install link or paste the JSON below (Settings → Tools & MCP → New MCP Server).',
         snippet: (url, t) => JSON.stringify({ mcpServers: { sharkshell: { url, headers: { Authorization: `Bearer ${t}` } } } }, null, 2),
+        deeplink: (url, t) => `https://cursor.com/install-mcp?name=sharkshell&config=${btoa(JSON.stringify({ url, headers: { Authorization: `Bearer ${t}` } }))}`,
+        deeplinkLabel: 'Add to Cursor',
     },
     {
         id: 'opencode',
         label: 'Opencode',
         target: 'opencode.json',
-        hint: 'Remote server with header auth (oauth: false forces the key).',
+        hint: 'Wizard writes the remote entry for you — or paste the JSON below for full control (oauth: false forces the key).',
         snippet: (url, t) => JSON.stringify({ mcp: { sharkshell: { type: 'remote', url, enabled: true, oauth: false, headers: { Authorization: `Bearer ${t}` } } } }, null, 2),
+        cli: (url, t) => `opencode mcp add\n# → choose Remote, then paste:\n#   URL: ${url}\n#   Header: Authorization: Bearer ${t}`,
+        cliHint: 'Interactive wizard — pick Remote and paste the URL + header when prompted.',
     },
     {
         id: 'pi',
@@ -197,6 +201,8 @@ export default function McpPage() {
 
     const activeClient = MCP_CLIENTS.find(c => c.id === selectedClient) || MCP_CLIENTS[0];
     const clientSnippet = revealKey ? activeClient.snippet(mcpUrl, revealKey.token) : '';
+    const clientCli = revealKey && activeClient.cli ? activeClient.cli(mcpUrl, revealKey.token) : '';
+    const clientDeeplink = revealKey && activeClient.deeplink ? activeClient.deeplink(mcpUrl, revealKey.token) : '';
 
     return (
         <div>
@@ -249,8 +255,19 @@ export default function McpPage() {
                     </div>
                     <div className="mcp-key-reveal" style={{ alignItems: 'flex-start' }}>
                         <code style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{clientSnippet}</code>
-                        <button className="btn btn-secondary btn-sm" onClick={() => copyText(clientSnippet, `${activeClient.label} setup`)}>Copy</button>
+                        <button className="btn btn-secondary btn-sm" onClick={() => copyText(clientSnippet, `${activeClient.label} config`)}>Copy</button>
                     </div>
+                    {clientCli && (
+                        <div className="mcp-key-reveal" style={{ alignItems: 'flex-start' }}>
+                            <code style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{clientCli}</code>
+                            <button className="btn btn-secondary btn-sm" onClick={() => copyText('opencode mcp add', 'Opencode command')}>Copy command</button>
+                        </div>
+                    )}
+                    {clientDeeplink && (
+                        <div style={{ margin: '0 0 8px' }}>
+                            <a className="btn btn-secondary btn-sm" href={clientDeeplink} target="_blank" rel="noreferrer">{activeClient.deeplinkLabel || 'One-click install'} ↗</a>
+                        </div>
+                    )}
                     <p style={{ margin: '0 0 8px', color: 'var(--text-secondary)', fontSize: 12 }}>{activeClient.hint}</p>
                     <div style={{ textAlign: 'right' }}>
                         <button className="btn btn-ghost btn-sm" onClick={() => setRevealKey(null)}>Dismiss</button>

@@ -55,6 +55,13 @@ behind nginx. See `docs/MCP.md`.
 
 ---
 
+## MCP setup extras ✅ DONE (v2.3.3)
+
+- Opencode entry gains the `opencode mcp add` wizard command with the exact Remote answers (URL + header).
+- Cursor entry gains a one-click **Add to Cursor** install link (the Cursor CLI has no add command).
+
+---
+
 ## Phase 1 — Terminal visual scrollback restore ✅ DONE
 
 **Independent of all org work. Highest daily-use value, lowest risk — shipped first (v2.0.0).**
