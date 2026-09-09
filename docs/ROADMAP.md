@@ -47,6 +47,14 @@ behind nginx. See `docs/MCP.md`.
 
 ---
 
+## MCP copy-URL + client setup selector ✅ DONE (v2.3.2)
+
+- MCP Access intro shows the instance endpoint with a **Copy URL** button (handy for OAuth-paste flows).
+- New/rotated key reveal adds a **client selector** (Claude Code, Codex, Cursor, Opencode, Pi agent,
+  VS Code, generic `.mcp.json`) rendering a ready-to-paste snippet wired with the fresh key.
+
+---
+
 ## Phase 1 — Terminal visual scrollback restore ✅ DONE
 
 **Independent of all org work. Highest daily-use value, lowest risk — shipped first (v2.0.0).**
