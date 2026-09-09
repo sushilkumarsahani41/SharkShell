@@ -12,6 +12,61 @@ const EXPIRY_OPTIONS = [
 
 const emptyForm = { label: '', capability: 'execute', scopeAll: true, allowedHostIds: [], allowedGroupIds: [], expiresInDays: '' };
 
+// Per-client setup snippets shown after a key is created/rotated.
+// url/token are interpolated at render time so the MCP endpoint stays correct
+// behind any origin (window.location.origin) and no secret is ever persisted.
+const MCP_CLIENTS = [
+    {
+        id: 'claude-code',
+        label: 'Claude Code',
+        target: 'Terminal',
+        hint: 'Run in your terminal. Omit --header to use OAuth instead.',
+        snippet: (url, t) => `claude mcp add --transport http sharkshell ${url} --header "Authorization: Bearer ${t}"`,
+    },
+    {
+        id: 'codex',
+        label: 'Codex',
+        target: '~/.codex/config.toml · Terminal',
+        hint: 'Codex reads the token from an env var — export it before starting Codex.',
+        snippet: (url, t) => `export SHARKSHELL_MCP_TOKEN="${t}"\ncodex mcp add sharkshell --url "${url}" --bearer-token-env-var SHARKSHELL_MCP_TOKEN`,
+    },
+    {
+        id: 'cursor',
+        label: 'Cursor',
+        target: '~/.cursor/mcp.json (global) or .cursor/mcp.json (project)',
+        hint: 'Settings → Tools & MCP → New MCP Server, then paste.',
+        snippet: (url, t) => JSON.stringify({ mcpServers: { sharkshell: { url, headers: { Authorization: `Bearer ${t}` } } } }, null, 2),
+    },
+    {
+        id: 'opencode',
+        label: 'Opencode',
+        target: 'opencode.json',
+        hint: 'Remote server with header auth (oauth: false forces the key).',
+        snippet: (url, t) => JSON.stringify({ mcp: { sharkshell: { type: 'remote', url, enabled: true, oauth: false, headers: { Authorization: `Bearer ${t}` } } } }, null, 2),
+    },
+    {
+        id: 'pi',
+        label: 'Pi agent',
+        target: '~/.pi/agent/mcp.json (global) or .pi/mcp.json (project)',
+        hint: 'Oh-my-pi / pi-mcp style Streamable-HTTP entry.',
+        snippet: (url, t) => JSON.stringify({ mcpServers: { sharkshell: { type: 'http', url, headers: { Authorization: `Bearer ${t}` } } } }, null, 2),
+    },
+    {
+        id: 'vscode',
+        label: 'VS Code',
+        target: '.vscode/mcp.json',
+        hint: 'Works for VS Code Copilot / Windsurf-style clients too.',
+        snippet: (url, t) => JSON.stringify({ servers: { sharkshell: { type: 'http', url, headers: { Authorization: `Bearer ${t}` } } } }, null, 2),
+    },
+    {
+        id: 'generic',
+        label: 'Other (.mcp.json)',
+        target: '.mcp.json',
+        hint: 'Generic Streamable-HTTP shape used by most MCP clients.',
+        snippet: (url, t) => JSON.stringify({ mcpServers: { sharkshell: { type: 'http', url, headers: { Authorization: `Bearer ${t}` } } } }, null, 2),
+    },
+];
+
 export default function McpPage() {
     const { token } = useAuth();
     const [keys, setKeys] = useState([]);
@@ -27,6 +82,7 @@ export default function McpPage() {
     const [form, setForm] = useState(emptyForm);
 
     const [revealKey, setRevealKey] = useState(null); // { token, label } shown once
+    const [selectedClient, setSelectedClient] = useState('claude-code');
     const [confirmRevoke, setConfirmRevoke] = useState(null);
     const [confirmReset, setConfirmReset] = useState(null);
 
@@ -133,13 +189,14 @@ export default function McpPage() {
         return parts.length ? parts.join(' + ') : 'No hosts';
     }
 
-    const connectCmd = (t) => `claude mcp add --transport http sharkshell ${mcpUrl} --header "Authorization: Bearer ${t}"`;
-
     function expirySummary(k) {
         if (!k.expires_at) return 'Never expires';
         const isPast = new Date(k.expires_at) < new Date();
         return `${isPast ? 'Expired' : 'Expires'} ${new Date(k.expires_at).toLocaleDateString()}`;
     }
+
+    const activeClient = MCP_CLIENTS.find(c => c.id === selectedClient) || MCP_CLIENTS[0];
+    const clientSnippet = revealKey ? activeClient.snippet(mcpUrl, revealKey.token) : '';
 
     return (
         <div>
@@ -161,7 +218,11 @@ export default function McpPage() {
                 </div>
                 <div>
                     <h2>MCP Access</h2>
-                    <p>Issue scoped keys so AI assistants (Claude and other MCP clients) can manage your servers through SharkShell. Each key can be limited to specific hosts and to read-only vs. command execution. Endpoint: <code className="mcp-inline-code">{mcpUrl}</code></p>
+                    <p>Issue scoped keys so AI assistants (Claude and other MCP clients) can manage your servers through SharkShell. Each key can be limited to specific hosts and to read-only vs. command execution.</p>
+                    <div className="mcp-key-reveal" style={{ marginTop: 10, marginBottom: 0 }}>
+                        <code>{mcpUrl}</code>
+                        <button className="btn btn-secondary btn-sm" onClick={() => copyText(mcpUrl, 'MCP URL')}>Copy URL</button>
+                    </div>
                     <p style={{ marginTop: 8 }}>Most MCP clients (including Claude) can connect with just this URL — pasting it triggers an OAuth approval popup instead of a manual key. Keys created that way appear below tagged <strong>OAuth</strong> and can be revoked like any other.</p>
                 </div>
             </div>
@@ -173,13 +234,24 @@ export default function McpPage() {
                         <span>Copy it now — it won't be shown again.</span>
                     </div>
                     <div className="mcp-key-reveal">
+                        <code>{mcpUrl}</code>
+                        <button className="btn btn-secondary btn-sm" onClick={() => copyText(mcpUrl, 'MCP URL')}>Copy URL</button>
+                    </div>
+                    <div className="mcp-key-reveal">
                         <code>{revealKey.token}</code>
                         <button className="btn btn-secondary btn-sm" onClick={() => copyText(revealKey.token, 'Access key')}>Copy</button>
                     </div>
-                    <div className="mcp-key-reveal">
-                        <code>{connectCmd(revealKey.token)}</code>
-                        <button className="btn btn-secondary btn-sm" onClick={() => copyText(connectCmd(revealKey.token), 'Command')}>Copy</button>
+                    <div className="input-group" style={{ margin: '12px 0 8px' }}>
+                        <label>Add to your client</label>
+                        <select className="input-field" value={selectedClient} onChange={e => setSelectedClient(e.target.value)}>
+                            {MCP_CLIENTS.map(c => <option key={c.id} value={c.id}>{c.label} — {c.target}</option>)}
+                        </select>
                     </div>
+                    <div className="mcp-key-reveal" style={{ alignItems: 'flex-start' }}>
+                        <code style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{clientSnippet}</code>
+                        <button className="btn btn-secondary btn-sm" onClick={() => copyText(clientSnippet, `${activeClient.label} setup`)}>Copy</button>
+                    </div>
+                    <p style={{ margin: '0 0 8px', color: 'var(--text-secondary)', fontSize: 12 }}>{activeClient.hint}</p>
                     <div style={{ textAlign: 'right' }}>
                         <button className="btn btn-ghost btn-sm" onClick={() => setRevealKey(null)}>Dismiss</button>
                     </div>
