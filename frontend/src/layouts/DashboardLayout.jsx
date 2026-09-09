@@ -3,6 +3,7 @@ import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTerminal } from '../context/TerminalContext';
 import TerminalPage from '../pages/TerminalPage';
+import pkg from '../../package.json';
 
 const navItems = [
     {
@@ -267,6 +268,7 @@ export default function DashboardLayout() {
                         </svg>
                         {!sidebarCollapsed && <span>Logout</span>}
                     </button>
+                    <span className="sidebar-version" title={`SharkShell v${pkg.version}`}>v{sidebarCollapsed ? pkg.version.split('.').slice(0, 2).join('.') : pkg.version}</span>
                 </div>
             </aside>
 
