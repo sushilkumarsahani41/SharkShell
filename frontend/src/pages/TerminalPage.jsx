@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTerminal } from '../context/TerminalContext';
 import { apiUrl } from '../api';
+// Bundled with the app rather than fetched from a public CDN at runtime, so
+// the terminal renders on hosts with no outbound internet access.
+import '@xterm/xterm/css/xterm.css';
 
 export default function TerminalPage() {
     const { token } = useAuth();
@@ -72,8 +75,6 @@ export default function TerminalPage() {
 
     return (
         <div className="terminal-page">
-            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5/css/xterm.min.css" />
-
             {/* Tab Bar */}
             <div className="terminal-tab-bar glass-card">
                 <div className="terminal-tabs-scroll">
