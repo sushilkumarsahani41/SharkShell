@@ -101,6 +101,7 @@ export class SshGateway implements OnGatewayConnection, OnGatewayDisconnect {
                 username: host.username,
                 readyTimeout: 20000,
                 keepaliveInterval: 10000,
+                tryKeyboard: true,
             };
 
             // Auth: key-based or password
@@ -182,6 +183,19 @@ export class SshGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
             sshClient.on('close', () => {
                 socket.emit('ssh:closed', { message: 'Connection closed' });
+            });
+
+            // Many PAM-backed servers (AlmaLinux, RHEL and friends) offer only
+            // "publickey,keyboard-interactive" and no "password" method at all.
+            // Without this, a correct password fails with "All configured
+            // authentication methods failed", while OpenSSH on the command line
+            // connects fine because it falls back to keyboard-interactive itself.
+            sshClient.on('keyboard-interactive', (name, instructions, lang, prompts, finish) => {
+                if (!connConfig.password) {
+                    finish([]);
+                    return;
+                }
+                finish(prompts.map((p: any) => (/password/i.test(p.prompt || '') ? connConfig.password : '')));
             });
 
             sshClient.connect(connConfig);
