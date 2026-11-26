@@ -5,3 +5,5 @@ data/
 .secrets/
 dist/
 config.bat
+
+.env
