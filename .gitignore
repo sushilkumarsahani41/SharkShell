@@ -4,6 +4,5 @@ data/
 *.db
 .secrets/
 dist/
-config.bat
 
-.env
+config.bat
