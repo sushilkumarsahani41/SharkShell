@@ -3,10 +3,10 @@
   "version": "2.1.0",
   "private": true,
   "scripts": {
-    "build": "node init && nest build",
-    "start": "node init && nest start",
-    "start:dev": "node init && nest start --watch",
-    "start:prod": "node init && node dist/main"
+    "build": "nest build",
+    "start": "nest start",
+    "start:dev": "nest start --watch",
+    "start:prod": "node dist/main"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.0",
